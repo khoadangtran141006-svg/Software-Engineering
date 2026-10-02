@@ -1,0 +1,54 @@
+:root {
+  /* =========================================================
+     BREWLITE COLOR SYSTEM
+  ========================================================== */
+
+  --brew-espresso: #3f2417;
+  --brew-coffee: #704329;
+  --brew-coffee-dark: #5b3522;
+  --brew-caramel: #e8a15a;
+  --brew-terracotta: #b86f38;
+
+  --brew-cream: #f3e9de;
+  --brew-paper: #fcfaf7;
+  --brew-white: #ffffff;
+
+  --brew-border: #eadfd5;
+  --brew-border-strong: #dfd0c3;
+
+  /* =========================================================
+     TYPOGRAPHY
+  ========================================================== */
+
+  --brew-display: -0.06em;
+  --brew-heading: -0.05em;
+  --brew-section: -0.04em;
+
+  /* =========================================================
+     RADIUS
+  ========================================================== */
+
+  --brew-radius-sm: 12px;
+  --brew-radius-md: 16px;
+  --brew-radius-lg: 28px;
+  --brew-radius-xl: 30px;
+  --brew-radius-pill: 999px;
+
+  /* =========================================================
+     SHADOW
+  ========================================================== */
+
+  --brew-shadow-card:
+    0 20px 60px rgba(63, 36, 23, 0.08);
+
+  --brew-shadow-button:
+    0 10px 25px rgba(112, 67, 41, 0.18);
+
+  /* =========================================================
+     TRANSITION
+  ========================================================== */
+
+  --brew-transition-fast: 150ms ease;
+  --brew-transition-normal: 200ms ease;
+  --brew-transition-slow: 300ms ease;
+}

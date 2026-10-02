@@ -1,0 +1,244 @@
+"use client";
+
+import Link from "next/link";
+import { ArrowLeft, Eye, EyeOff, LockKeyhole } from "lucide-react";
+import { FormEvent, useState } from "react";
+
+export default function LoginPage() {
+  const [showPassword, setShowPassword] = useState(false);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+  }
+
+  return (
+    <main className="min-h-screen bg-[#f3e9de] p-3 sm:p-5 lg:p-7">
+      <div className="relative mx-auto flex min-h-[calc(100vh-24px)] max-w-[1500px] overflow-hidden rounded-[30px] bg-[#fcfaf7] shadow-[0_25px_80px_rgba(63,36,23,0.12)] sm:min-h-[calc(100vh-40px)] lg:min-h-[calc(100vh-56px)]">
+        {/* =====================================================
+            LEFT BRAND PANEL
+        ====================================================== */}
+        <section className="relative hidden overflow-hidden bg-[#3f2417] lg:flex lg:w-[48%] lg:flex-col lg:justify-between">
+          {/* Decorative circles */}
+          <div className="absolute -left-32 -top-32 h-[420px] w-[420px] rounded-full border border-white/[0.08]" />
+
+          <div className="absolute -bottom-48 -right-40 h-[520px] w-[520px] rounded-full border border-white/[0.08]" />
+
+          <div className="absolute right-20 top-24 h-32 w-32 rounded-full bg-[#e8a15a]/10 blur-3xl" />
+
+          <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#704329]/20 blur-3xl" />
+
+          {/* Brand */}
+          <div className="relative z-10 px-10 pt-10 xl:px-14 xl:pt-12">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-3"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#e8a15a] text-[#3f2417] shadow-lg shadow-black/10">
+                <LockKeyhole size={20} />
+              </div>
+
+              <div>
+                <div className="text-lg font-bold tracking-[-0.02em] text-white">
+                  BrewLite
+                </div>
+
+                <div className="text-[9px] font-medium uppercase tracking-[0.22em] text-white/40">
+                  More than just coffee
+                </div>
+              </div>
+            </Link>
+          </div>
+
+          {/* Main message */}
+          <div className="relative z-10 px-10 xl:px-14">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e8a15a]">
+              Welcome back
+            </p>
+
+            <h1 className="mt-5 max-w-xl text-5xl font-semibold leading-[1.03] tracking-[-0.06em] text-white xl:text-[64px]">
+              Một ly cà phê ngon,
+              <br />
+              bắt đầu từ một
+              <br />
+              lựa chọn nhỏ.
+            </h1>
+
+            <p className="mt-7 max-w-lg text-sm leading-7 text-white/50">
+              Đăng nhập để tiếp tục đặt món, theo dõi đơn hàng
+              và tận hưởng trải nghiệm BrewLite một cách thuận
+              tiện hơn.
+            </p>
+          </div>
+
+          {/* Bottom */}
+          <div className="relative z-10 flex items-center justify-between px-10 pb-10 text-xs text-white/30 xl:px-14 xl:pb-12">
+            <span>© 2026 BrewLite</span>
+
+            <span>Crafted with ☕ for better days.</span>
+          </div>
+        </section>
+
+        {/* =====================================================
+            RIGHT LOGIN AREA
+        ====================================================== */}
+        <section className="flex flex-1 items-center justify-center px-5 py-8 sm:px-10 sm:py-12 lg:px-14 xl:px-20">
+          <div className="w-full max-w-[480px]">
+            {/* Back */}
+            <Link
+              href="/"
+              className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[#704329]/55 transition hover:text-[#704329]"
+            >
+              <ArrowLeft size={16} />
+              Về trang chủ
+            </Link>
+
+            {/* Login card */}
+            <div className="rounded-[28px] border border-[#eadfd5] bg-white p-7 shadow-[0_20px_60px_rgba(63,36,23,0.08)] sm:p-9 lg:p-10">
+              {/* Heading */}
+              <div>
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f3e9de] text-[#704329]">
+                  <LockKeyhole size={21} />
+                </div>
+
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#b86f38]">
+                  Account
+                </p>
+
+                <h2 className="mt-2 text-4xl font-semibold tracking-[-0.055em] text-[#3f2417] sm:text-[42px]">
+                  Đăng nhập
+                </h2>
+
+                <p className="mt-3 text-sm leading-6 text-[#704329]/55">
+                  Chào mừng bạn trở lại với BrewLite. Đăng nhập
+                  để tiếp tục đơn hàng của mình.
+                </p>
+              </div>
+
+              {/* Form */}
+              <form
+                onSubmit={handleSubmit}
+                className="mt-8 space-y-5"
+              >
+                {/* EMAIL */}
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="mb-2 block text-sm font-semibold text-[#3f2417]"
+                  >
+                    Email
+                  </label>
+
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    required
+                    className="h-13 w-full rounded-2xl border border-[#dfd0c3] bg-[#fcfaf7] px-4 text-sm text-[#3f2417] outline-none transition placeholder:text-[#704329]/30 focus:border-[#704329]/50 focus:bg-white focus:ring-4 focus:ring-[#704329]/8"
+                  />
+                </div>
+
+                {/* PASSWORD */}
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-4">
+                    <label
+                      htmlFor="password"
+                      className="text-sm font-semibold text-[#3f2417]"
+                    >
+                      Mật khẩu
+                    </label>
+
+                    <Link
+                      href="/forgot-password"
+                      className="text-xs font-medium text-[#704329]/55 transition hover:text-[#704329]"
+                    >
+                      Quên mật khẩu?
+                    </Link>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      id="password"
+                      name="password"
+                      type={
+                        showPassword ? "text" : "password"
+                      }
+                      autoComplete="current-password"
+                      placeholder="Nhập mật khẩu"
+                      required
+                      className="h-13 w-full rounded-2xl border border-[#dfd0c3] bg-[#fcfaf7] px-4 pr-12 text-sm text-[#3f2417] outline-none transition placeholder:text-[#704329]/30 focus:border-[#704329]/50 focus:bg-white focus:ring-4 focus:ring-[#704329]/8"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowPassword(!showPassword)
+                      }
+                      aria-label={
+                        showPassword
+                          ? "Ẩn mật khẩu"
+                          : "Hiện mật khẩu"
+                      }
+                      className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-[#704329]/40 transition hover:bg-[#f3e9de] hover:text-[#704329]"
+                    >
+                      {showPassword ? (
+                        <EyeOff size={18} />
+                      ) : (
+                        <Eye size={18} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* REMEMBER */}
+                <label className="flex cursor-pointer items-center gap-3">
+                  <input
+                    id="remember"
+                    name="remember"
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-[#d9c4b2] accent-[#704329]"
+                  />
+
+                  <span className="text-sm text-[#704329]/55">
+                    Ghi nhớ đăng nhập
+                  </span>
+                </label>
+
+                {/* SUBMIT */}
+                <button
+                  type="submit"
+                  className="mt-2 flex h-13 w-full items-center justify-center rounded-2xl bg-[#704329] px-5 text-sm font-semibold text-white shadow-[0_10px_25px_rgba(112,67,41,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#5b3522] hover:shadow-[0_14px_30px_rgba(112,67,41,0.22)] active:translate-y-0 active:scale-[0.99]"
+                >
+                  Đăng nhập
+                </button>
+              </form>
+
+              {/* REGISTER */}
+              <div className="mt-7 border-t border-[#eadfd5] pt-6 text-center">
+                <p className="text-sm text-[#704329]/45">
+                  Chưa có tài khoản?
+                </p>
+
+                <Link
+                  href="/register"
+                  className="mt-1.5 inline-flex text-sm font-semibold text-[#704329] transition hover:text-[#b86f38]"
+                >
+                  Tạo tài khoản mới →
+                </Link>
+              </div>
+
+              {/* Security */}
+              <div className="mt-6 rounded-2xl bg-[#f8f1ea] px-4 py-3.5 text-center">
+                <p className="text-[11px] leading-5 text-[#704329]/45">
+                  Thông tin tài khoản của bạn được bảo vệ an
+                  toàn cùng BrewLite.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
