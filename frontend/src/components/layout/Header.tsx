@@ -66,26 +66,24 @@ export default function Header() {
         </nav>
 
         {/* Actions */}
-        <div className="hidden items-center gap-2 md:flex">
-          
-
+        <div className="flex items-center gap-2">
           <Link
-          id="cart-button"
+            id="cart-button"
             href="/cart"
             aria-label="Giỏ hàng"
-            className="relative flex h-10 w-10 items-center justify-center rounded-full text-[#3f2417] transition-all hover:bg-[#f2e9df]"
+            className="relative flex h-10 w-10 items-center justify-center rounded-full text-[#3f2417] transition-all hover:bg-[#f2e9df] md:h-10 md:w-10"
           >
             <ShoppingCart size={19} strokeWidth={1.8} />
 
             <span className="absolute right-0.5 top-0.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[#e8a15a] px-1 text-[9px] font-bold text-white">
-  {totalQuantity}
+              {totalQuantity}
 </span>
           </Link>
 
           <Link
-            href="/login"
+            href="/profile"
             aria-label="Tài khoản"
-            className="flex h-10 w-10 items-center justify-center rounded-full text-[#3f2417] transition-all hover:bg-[#f2e9df]"
+            className="hidden h-10 w-10 items-center justify-center rounded-full text-[#3f2417] transition-all hover:bg-[#f2e9df] md:flex"
           >
             <UserRound size={19} strokeWidth={1.8} />
           </Link>
@@ -139,11 +137,11 @@ export default function Header() {
             </Link>
 
             <Link
-              href="/login"
+              href="/profile"
               onClick={() => setMobileMenuOpen(false)}
               className="rounded-xl px-4 py-3 text-sm font-medium text-[#3f2417] hover:bg-[#f2e9df]"
             >
-              Đăng nhập
+              {"T\u00e0i kho\u1ea3n"}
             </Link>
           </nav>
         </div>

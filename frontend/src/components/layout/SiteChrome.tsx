@@ -8,6 +8,7 @@ const authRoutes = [
   "/login",
   "/register",
   "/forgot-password",
+  "/reset-password",
 ];
 
 export default function SiteChrome({

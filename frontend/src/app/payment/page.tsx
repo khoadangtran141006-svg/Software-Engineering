@@ -17,6 +17,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/stores/cart-store";
 import { useOrdersStore } from "@/stores/orders-store";
+import { getToken } from "@/services/auth";
 
 function formatPrice(price: number) {
   return `${price.toLocaleString("vi-VN")}đ`;
@@ -41,6 +42,8 @@ export default function PaymentPage() {
 
   const [walletAccount, setWalletAccount] =
     useState("");
+  const [paymentError, setPaymentError] = useState("");
+  const [pendingOrder, setPendingOrder] = useState<{ id: number; orderCode: string; total: number } | null>(null);
 
   const subtotal = useMemo(() => {
     return cartItems.reduce(
@@ -72,62 +75,48 @@ export default function PaymentPage() {
    * và xử lý trạng thái PAID / PAYMENT_FAILED
    * ở backend.
    */
-  function handlePayment() {
-  if (cartItems.length === 0 || isProcessing) {
-    return;
+  async function handlePayment() {
+    if (cartItems.length === 0 || isProcessing) return;
+    const token = getToken();
+    if (!token) {
+      router.push("/login?next=/payment");
+      return;
+    }
+    setPaymentError("");
+    setIsProcessing(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+      let order = pendingOrder;
+      if (!order) {
+        const orderResponse = await fetch(`${apiUrl}/orders`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ items: cartItems.map((item) => ({ productId: item.id, size: item.size, quantity: item.quantity, toppings: item.toppings })) }),
+        });
+        const result = await orderResponse.json();
+        if (!orderResponse.ok) throw new Error(result.message ?? "Không thể tạo đơn hàng");
+        order = result;
+        setPendingOrder(order);
+      }
+      if (!order) throw new Error("Không thể tạo đơn hàng");
+      const paymentResponse = await fetch(`${apiUrl}/payments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() },
+        body: JSON.stringify({ orderId: order.id, method: paymentMethod === "wallet" ? "Ví điện tử" : "QR Code", token: walletAccount || "approved" }),
+      });
+      const payment = await paymentResponse.json();
+      if (!paymentResponse.ok) throw new Error(payment.message ?? "Thanh toán thất bại");
+      if (payment.status !== "SUCCEEDED") throw new Error("Giao dịch bị từ chối. Hãy thử lại.");
+      addOrder({ id: order.orderCode, createdAt: new Date().toISOString(), status: "PAID", paymentMethod: paymentMethod === "wallet" ? "Ví điện tử" : "QR Code", items: cartItems.map((item) => ({ id: item.id, name: item.name, image: item.image, category: item.category, size: item.size, toppings: [...item.toppings], note: item.note, unitPrice: item.unitPrice, quantity: item.quantity })), totalQuantity, total: order.total });
+      clearCart();
+      setPendingOrder(null);
+      router.push(`/order-success?payment=${paymentMethod}&order=${order.orderCode}`);
+    } catch (cause) {
+      setPaymentError(cause instanceof Error ? cause.message : "Không thể hoàn tất thanh toán");
+    } finally {
+      setIsProcessing(false);
+    }
   }
-
-  setIsProcessing(true);
-
-  window.setTimeout(() => {
-    const orderId = `BL-${Math.floor(100000 + Math.random() * 900000)}`;
-
-    const totalQuantity = cartItems.reduce(
-      (total, item) => total + item.quantity,
-      0,
-    );
-
-    const newOrder = {
-      id: orderId,
-      createdAt: new Date().toISOString(),
-      status: "PAID" as const,
-      paymentMethod:
-        paymentMethod === "wallet"
-          ? ("Ví điện tử" as const)
-          : ("QR Code" as const),
-      items: cartItems.map((item) => ({
-        id: item.id,
-        name: item.name,
-        image: item.image,
-        category: item.category,
-        size: item.size,
-        toppings: [...item.toppings],
-        note: item.note,
-        unitPrice: item.unitPrice,
-        quantity: item.quantity,
-      })),
-      totalQuantity,
-      total,
-    };
-
-    /*
-     * 1. Lưu đơn hàng
-     */
-    addOrder(newOrder);
-
-    /*
-     * 2. Xóa toàn bộ giỏ hàng
-     */
-    clearCart();
-
-    /*
-     * 3. Chuyển sang màn hình thành công
-     */
-    router.push(
-      `/order-success?payment=${paymentMethod}&order=${orderId}`,
-    );
-  }, 1200);
-}
 
   /*
    * EMPTY CART
@@ -616,6 +605,7 @@ export default function PaymentPage() {
                 {/* =================================================
                     PAYMENT BUTTON
                 ================================================== */}
+                {paymentError && <p role="alert" className="mt-4 text-sm text-red-700">{paymentError}</p>}
                 <button
                   type="button"
                   onClick={handlePayment}

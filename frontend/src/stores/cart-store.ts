@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export type CartItem = {
   cartKey: string;
@@ -37,7 +38,7 @@ function createCartKey(item: AddCartItem) {
   ].join("|");
 }
 
-export const useCartStore = create<CartStore>((set, get) => ({
+export const useCartStore = create<CartStore>()(persist((set, get) => ({
   items: [],
 
   addItem: (item) => {
@@ -128,4 +129,4 @@ export const useCartStore = create<CartStore>((set, get) => ({
       0,
     );
   },
-}));
+}), { name: "brewLite-cart" }));

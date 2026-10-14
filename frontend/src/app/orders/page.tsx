@@ -14,7 +14,8 @@ import {
   ShoppingBag,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getToken } from "@/services/auth";
 
 import type {
   Order,
@@ -46,6 +47,21 @@ function formatOrderDate(createdAt: string) {
 
 function getStatusInfo(status: OrderStatus) {
   switch (status) {
+    case "PENDING":
+      return {
+        label: "Chờ thanh toán",
+        description: "Đơn hàng đang chờ thanh toán",
+        icon: Clock3,
+        className: "bg-[#fff4e6] text-[#a55d22] border-[#f1d7bb]",
+      };
+
+    case "PAYMENT_FAILED":
+      return {
+        label: "Thanh toán thất bại",
+        description: "Vui lòng thử lại phương thức thanh toán",
+        icon: XCircle,
+        className: "bg-[#fceeee] text-[#a33a3a] border-[#eccaca]",
+      };
     case "PAID":
       return {
         label: "Đã thanh toán",
@@ -103,6 +119,29 @@ export default function OrdersPage() {
    * Dữ liệu được lấy trực tiếp từ Zustand + localStorage.
    */
   const orders = useOrdersStore((state) => state.orders);
+  const setOrders = useOrdersStore((state) => state.setOrders);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+    fetch(`${apiUrl}/orders/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message ?? "Không thể tải lịch sử đơn hàng");
+        setOrders(payload.map((order: { id: number; orderCode: string; status: OrderStatus; total: number; createdAt: string; paymentMethod: string | null; items: Array<{ id: number; quantity: number; size: string; lineTotal: number; toppings: string[]; product: { id: number; name: string; category: string; imageUrl: string } }> }) => ({
+          id: order.orderCode,
+          createdAt: order.createdAt,
+          status: order.status,
+          paymentMethod: order.paymentMethod === "Ví điện tử" ? "Ví điện tử" : "QR Code",
+          items: order.items.map((item) => ({ id: item.id, name: item.product.name, image: item.product.imageUrl, category: item.product.category, size: item.size, toppings: item.toppings ?? [], note: "", unitPrice: Math.floor(item.lineTotal / item.quantity), quantity: item.quantity })),
+          totalQuantity: order.items.reduce((sum, item) => sum + item.quantity, 0),
+          total: order.total,
+        })));
+      })
+      .catch((cause: unknown) => setLoadError(cause instanceof Error ? cause.message : "Không thể tải lịch sử"));
+  }, [setOrders]);
 
   const [selectedOrder, setSelectedOrder] =
     useState<Order | null>(null);
@@ -160,6 +199,7 @@ export default function OrdersPage() {
           MAIN CONTENT
       ========================================================== */}
       <section className="mx-auto max-w-7xl px-6 py-12 sm:px-8 lg:px-10 lg:py-16">
+        {loadError && <p role="alert" className="mb-5 rounded-xl bg-red-50 p-4 text-sm text-red-700">{loadError}</p>}
         {/* =======================================================
             TOP BAR
         ======================================================== */}

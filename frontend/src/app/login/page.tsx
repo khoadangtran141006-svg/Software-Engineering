@@ -2,18 +2,72 @@
 
 import Link from "next/link";
 import { ArrowLeft, Eye, EyeOff, LockKeyhole } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { signIn } from "@/services/auth";
+import { useRouter } from "next/navigation";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_MIN_LENGTH = 8;
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [registeredNotice, setRegisteredNotice] = useState("");
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("registered") === "1") {
+      setRegisteredNotice("\u0110\u0103ng k\u00fd th\u00e0nh c\u00f4ng. H\u00e3y \u0111\u0103ng nh\u1eadp b\u1eb1ng t\u00e0i kho\u1ea3n v\u1eeba t\u1ea1o.");
+    }
+  }, []);
+
+  function validateEmail(value: string) {
+    const message = !value.trim()
+      ? "Vui l\u00f2ng \u0111i\u1ec1n th\u00f4ng tin"
+      : EMAIL_PATTERN.test(value.trim()) ? "" : "Email kh\u00f4ng h\u1ee3p l\u1ec7";
+    setEmailError(message);
+    return !message;
+  }
+
+  function validatePassword(value: string) {
+    const message = !value
+      ? "Vui l\u00f2ng \u0111i\u1ec1n th\u00f4ng tin"
+      : value.length >= PASSWORD_MIN_LENGTH
+        ? ""
+        : `M\u1eadt kh\u1ea9u ph\u1ea3i c\u00f3 \u00edt nh\u1ea5t ${PASSWORD_MIN_LENGTH} k\u00fd t\u1ef1`;
+    setPasswordError(message);
+    return !message;
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError("");
+    const validEmail = validateEmail(email);
+    const validPassword = validatePassword(password);
+    if (!validEmail || !validPassword) {
+      if (!email.trim() || !password) setError("Vui l\u00f2ng \u0111i\u1ec1n email v\u00e0 m\u1eadt kh\u1ea9u.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await signIn(email.trim(), password);
+      const next = new URLSearchParams(window.location.search).get("next");
+      router.push(next?.startsWith("/") && !next.startsWith("//") ? next : "/menu");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "\u0110\u0103ng nh\u1eadp th\u1ea5t b\u1ea1i");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
-    <main className="min-h-screen bg-[#f3e9de] p-3 sm:p-5 lg:p-7">
-      <div className="relative mx-auto flex min-h-[calc(100vh-24px)] max-w-[1500px] overflow-hidden rounded-[30px] bg-[#fcfaf7] shadow-[0_25px_80px_rgba(63,36,23,0.12)] sm:min-h-[calc(100vh-40px)] lg:min-h-[calc(100vh-56px)]">
+    <main className="h-dvh overflow-hidden bg-[#f3e9de]">
+      <div className="relative mx-auto flex h-full min-h-0 max-w-none overflow-hidden rounded-none bg-[#fcfaf7] shadow-[0_25px_80px_rgba(63,36,23,0.12)]">
         {/* =====================================================
             LEFT BRAND PANEL
         ====================================================== */}
@@ -81,19 +135,19 @@ export default function LoginPage() {
         {/* =====================================================
             RIGHT LOGIN AREA
         ====================================================== */}
-        <section className="flex flex-1 items-center justify-center px-5 py-8 sm:px-10 sm:py-12 lg:px-14 xl:px-20">
-          <div className="w-full max-w-[480px]">
+        <section className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-5 py-4 sm:px-10 lg:px-14 xl:px-20">
+          <div className="w-full max-w-[480px] py-3">
             {/* Back */}
             <Link
               href="/"
-              className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[#704329]/55 transition hover:text-[#704329]"
+              className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-[#704329]/55 transition hover:text-[#704329]"
             >
               <ArrowLeft size={16} />
               Về trang chủ
             </Link>
 
             {/* Login card */}
-            <div className="rounded-[28px] border border-[#eadfd5] bg-white p-7 shadow-[0_20px_60px_rgba(63,36,23,0.08)] sm:p-9 lg:p-10">
+            <div className="rounded-[28px] border border-[#eadfd5] bg-white p-6 shadow-[0_20px_60px_rgba(63,36,23,0.08)] sm:p-8">
               {/* Heading */}
               <div>
                 <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f3e9de] text-[#704329]">
@@ -115,9 +169,11 @@ export default function LoginPage() {
               </div>
 
               {/* Form */}
+              {registeredNotice && <p role="status" className="mb-4 rounded-xl bg-green-50 p-3 text-sm text-green-800">{registeredNotice}</p>}
               <form
                 onSubmit={handleSubmit}
-                className="mt-8 space-y-5"
+                noValidate
+                className="mt-5 space-y-4"
               >
                 {/* EMAIL */}
                 <div>
@@ -134,9 +190,19 @@ export default function LoginPage() {
                     type="email"
                     autoComplete="email"
                     placeholder="you@example.com"
+                    value={email}
+                    onChange={(event) => {
+                      setError("");
+                      setEmail(event.target.value);
+                      validateEmail(event.target.value);
+                    }}
+                    onBlur={() => validateEmail(email)}
+                    aria-invalid={Boolean(emailError)}
+                    aria-describedby={emailError ? "email-error" : undefined}
                     required
-                    className="h-13 w-full rounded-2xl border border-[#dfd0c3] bg-[#fcfaf7] px-4 text-sm text-[#3f2417] outline-none transition placeholder:text-[#704329]/30 focus:border-[#704329]/50 focus:bg-white focus:ring-4 focus:ring-[#704329]/8"
+                    className={`h-13 w-full rounded-2xl border ${emailError ? "border-red-500" : "border-[#dfd0c3]"} bg-[#fcfaf7] px-4 text-sm text-[#3f2417] outline-none transition placeholder:text-[#704329]/30 focus:border-[#704329]/50 focus:bg-white focus:ring-4 focus:ring-[#704329]/8`}
                   />
+                  {emailError && <p id="email-error" role="alert" className="mt-1.5 text-xs text-red-700">{emailError}</p>}
                 </div>
 
                 {/* PASSWORD */}
@@ -165,9 +231,18 @@ export default function LoginPage() {
                         showPassword ? "text" : "password"
                       }
                       autoComplete="current-password"
+                      value={password}
+                      onChange={(event) => {
+                        setError("");
+                        setPassword(event.target.value);
+                        validatePassword(event.target.value);
+                      }}
+                      onBlur={() => validatePassword(password)}
+                      aria-invalid={Boolean(passwordError)}
+                      aria-describedby={passwordError ? "password-error" : undefined}
                       placeholder="Nhập mật khẩu"
                       required
-                      className="h-13 w-full rounded-2xl border border-[#dfd0c3] bg-[#fcfaf7] px-4 pr-12 text-sm text-[#3f2417] outline-none transition placeholder:text-[#704329]/30 focus:border-[#704329]/50 focus:bg-white focus:ring-4 focus:ring-[#704329]/8"
+                      className={`h-13 w-full rounded-2xl border ${passwordError ? "border-red-500" : "border-[#dfd0c3]"} bg-[#fcfaf7] px-4 pr-12 text-sm text-[#3f2417] outline-none transition placeholder:text-[#704329]/30 focus:border-[#704329]/50 focus:bg-white focus:ring-4 focus:ring-[#704329]/8`}
                     />
 
                     <button
@@ -189,6 +264,7 @@ export default function LoginPage() {
                       )}
                     </button>
                   </div>
+                  {passwordError && <p id="password-error" role="alert" className="mt-1.5 text-xs text-red-700">{passwordError}</p>}
                 </div>
 
                 {/* REMEMBER */}
@@ -206,9 +282,11 @@ export default function LoginPage() {
                 </label>
 
                 {/* SUBMIT */}
+                {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
                 <button
                   type="submit"
-                  className="mt-2 flex h-13 w-full items-center justify-center rounded-2xl bg-[#704329] px-5 text-sm font-semibold text-white shadow-[0_10px_25px_rgba(112,67,41,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#5b3522] hover:shadow-[0_14px_30px_rgba(112,67,41,0.22)] active:translate-y-0 active:scale-[0.99]"
+                  disabled={submitting}
+                  className="mt-2 flex h-13 w-full items-center justify-center rounded-2xl bg-[#704329] px-5 text-sm font-semibold text-white shadow-[0_10px_25px_rgba(112,67,41,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#5b3522] hover:shadow-[0_14px_30px_rgba(112,67,41,0.22)] active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Đăng nhập
                 </button>

@@ -14,6 +14,7 @@ import {
 import { getProductById } from "@/services/products";
 import type { Product } from "@/types/product";
 import { useCartStore } from "@/stores/cart-store";
+import { animateProductToCart } from "@/lib/cart-animation";
 
 type ProductPageProps = {
   params: Promise<{
@@ -250,31 +251,7 @@ export default function ProductDetailPage({
       quantity,
     });
 
-    const cartButton =
-      document.getElementById("cart-button");
-
-    if (cartButton) {
-      cartButton.animate(
-        [
-          {
-            transform: "scale(1)",
-          },
-          {
-            transform: "scale(1.12)",
-          },
-          {
-            transform: "scale(0.95)",
-          },
-          {
-            transform: "scale(1)",
-          },
-        ],
-        {
-          duration: 450,
-          easing: "ease-out",
-        },
-      );
-    }
+    animateProductToCart(product.imageUrl);
 
     window.setTimeout(() => {
       setIsAddingToCart(false);
@@ -381,6 +358,7 @@ export default function ProductDetailPage({
             <div className="overflow-hidden rounded-[32px] border border-[#eadfd5] bg-white shadow-[0_18px_55px_rgba(63,36,23,0.08)]">
               <div className="aspect-square overflow-hidden bg-[#f3e9de]">
                 <img
+                  data-product-hero-image
                   src={product.imageUrl}
                   alt={product.name}
                   className="h-full w-full object-cover"

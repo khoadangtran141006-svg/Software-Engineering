@@ -4,11 +4,13 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type OrderStatus =
+  | "PENDING"
   | "PAID"
   | "PREPARING"
   | "READY"
   | "COMPLETED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "PAYMENT_FAILED";
 
 export type OrderItem = {
   id: number;
@@ -36,6 +38,7 @@ type OrdersStore = {
   orders: Order[];
   addOrder: (order: Order) => void;
   clearOrders: () => void;
+  setOrders: (orders: Order[]) => void;
 };
 
 export const useOrdersStore = create<OrdersStore>()(
@@ -56,6 +59,8 @@ export const useOrdersStore = create<OrdersStore>()(
       clearOrders: () => {
         set({ orders: [] });
       },
+
+      setOrders: (orders) => set({ orders }),
     }),
     {
       name: "brewLite-orders",

@@ -1,315 +1,126 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  ArrowRight,
-  Check,
-  Clock3,
-  Coffee,
-  Home,
-  PackageCheck,
-  ReceiptText,
-  ShoppingBag,
-} from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { ArrowRight, Check, Coffee, Home, ReceiptText, ShoppingBag } from "lucide-react";
+import { getToken } from "@/services/auth";
+
+type OrderDetails = {
+  orderCode: string;
+  status: string;
+  total: number;
+  paymentMethod: string | null;
+  items: Array<{ quantity: number }>;
+};
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const statusLabels: Record<string, string> = {
+  PENDING: "Chờ thanh toán",
+  PAID: "Đã thanh toán",
+  PREPARING: "Đang chuẩn bị",
+  READY: "Sẵn sàng nhận",
+  COMPLETED: "Đã hoàn thành",
+  PAYMENT_FAILED: "Thanh toán thất bại",
+  CANCELLED: "Đã hủy",
+};
 
 function formatPrice(price: number) {
-  return `${price.toLocaleString("vi-VN")}đ`;
+  return `${price.toLocaleString("vi-VN")}₫`;
 }
 
 function OrderSuccessContent() {
   const searchParams = useSearchParams();
+  const orderCode = searchParams.get("order");
+  const [order, setOrder] = useState<OrderDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const orderCode = searchParams.get("order") ?? "BL-000000";
+  useEffect(() => {
+    const token = getToken();
+    if (!token || !orderCode) {
+      setError("Không tìm thấy thông tin đơn hàng. Hãy đăng nhập để xem lịch sử đơn.");
+      setLoading(false);
+      return;
+    }
 
-  const paymentMethod =
-    searchParams.get("payment") === "wallet"
-      ? "Ví điện tử"
-      : "QR Code";
+    let active = true;
+    fetch(`${API_URL}/orders/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message ?? "Không thể tải thông tin đơn hàng.");
+        const found = (result as OrderDetails[]).find((item) => item.orderCode === orderCode);
+        if (!found) throw new Error("Đơn hàng không tồn tại hoặc không thuộc tài khoản này.");
+        if (active) setOrder(found);
+      })
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Không thể tải thông tin đơn hàng.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [orderCode]);
 
-  const orderInfo = {
-    code: orderCode,
-    status: "Đã thanh toán",
-    totalItems: 1,
-    total: 35000,
-  };
+  const totalItems = order?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 
   return (
-    <main className="min-h-screen bg-[#fcfaf7] text-[#3f2417]">
-      {/* =========================================================
-          HERO
-      ========================================================== */}
-      <section className="border-b border-[#eadfd5] bg-[#f3e9de]">
-        <div className="mx-auto max-w-5xl px-6 py-14 sm:px-8 sm:py-20 lg:px-10 lg:py-24">
-          <div className="mx-auto max-w-3xl text-center">
-            {/* SUCCESS ICON */}
-            <div className="relative mx-auto flex h-24 w-24 items-center justify-center">
-              <div className="absolute inset-0 animate-ping rounded-full bg-[#704329]/10 [animation-duration:2.5s]" />
-
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-[#704329] text-white shadow-[0_15px_35px_rgba(112,67,41,0.22)]">
-                <Check size={38} strokeWidth={2.5} />
-              </div>
-            </div>
-
-            <p className="mt-8 text-xs font-semibold uppercase tracking-[0.24em] text-[#b86f38]">
-              Order confirmed
-            </p>
-
-            <h1 className="mt-3 text-4xl font-semibold tracking-[-0.055em] text-[#3f2417] sm:text-5xl lg:text-6xl">
-              Đặt hàng thành công!
-            </h1>
-
-            <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-[#704329]/60 sm:text-base">
-              Cảm ơn bạn đã đặt hàng tại BrewLite. Đơn hàng của bạn đã được ghi
-              nhận và đang được chuẩn bị.
-            </p>
-          </div>
+    <main className="min-h-screen bg-[#fcfaf7] px-6 py-16 text-[#3f2417] sm:py-24">
+      <section className="mx-auto max-w-2xl rounded-[28px] border border-[#eadfd5] bg-white p-7 text-center shadow-[0_18px_55px_rgba(63,36,23,0.08)] sm:p-12">
+        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#704329] text-white">
+          {loading ? <Coffee size={32} /> : <Check size={38} />}
         </div>
-      </section>
+        <p className="mt-7 text-xs font-semibold uppercase tracking-[0.22em] text-[#b86f38]">BrewLite</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+          {loading ? "Đang tải đơn hàng" : error ? "Chưa thể xác nhận đơn" : "Đặt hàng thành công!"}
+        </h1>
+        <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-[#704329]/65">
+          {error || "Cảm ơn bạn đã đặt hàng. Thông tin bên dưới được lấy từ đơn hàng đã lưu trên hệ thống."}
+        </p>
 
-      {/* =========================================================
-          CONTENT
-      ========================================================== */}
-      <section className="mx-auto max-w-5xl px-6 py-10 sm:px-8 sm:py-14 lg:px-10 lg:py-16">
-        <div className="mx-auto max-w-3xl">
-          {/* =====================================================
-              ORDER CARD
-          ====================================================== */}
-          <div className="overflow-hidden rounded-[28px] border border-[#eadfd5] bg-white shadow-[0_18px_55px_rgba(63,36,23,0.08)]">
-            {/* ORDER CODE */}
-            <div className="bg-[#3f2417] px-6 py-7 text-white sm:px-8">
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#e8a15a]">
-                    Mã đơn hàng
-                  </p>
-
-                  <h2 className="mt-2 text-2xl font-bold tracking-[-0.03em] sm:text-3xl">
-                    {orderInfo.code}
-                  </h2>
-                </div>
-
-                <div className="flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white">
-                  <Check size={14} />
-                  {orderInfo.status}
-                </div>
-              </div>
-            </div>
-
-            {/* SUMMARY */}
-            <div className="p-6 sm:p-8">
-              <div className="grid gap-4 sm:grid-cols-3">
-                {/* QUANTITY */}
-                <div className="rounded-2xl bg-[#fcfaf7] px-4 py-4">
-                  <div className="flex items-center gap-2 text-[#704329]/40">
-                    <ShoppingBag size={15} />
-
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em]">
-                      Số lượng
-                    </p>
-                  </div>
-
-                  <p className="mt-2 text-lg font-bold text-[#3f2417]">
-                    {orderInfo.totalItems} món
-                  </p>
-                </div>
-
-                {/* PAYMENT */}
-                <div className="rounded-2xl bg-[#fcfaf7] px-4 py-4">
-                  <div className="flex items-center gap-2 text-[#704329]/40">
-                    <ReceiptText size={15} />
-
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em]">
-                      Thanh toán
-                    </p>
-                  </div>
-
-                  <p className="mt-2 text-lg font-bold text-[#3f2417]">
-                    {paymentMethod}
-                  </p>
-                </div>
-
-                {/* TOTAL */}
-                <div className="rounded-2xl bg-[#fcfaf7] px-4 py-4">
-                  <div className="flex items-center gap-2 text-[#704329]/40">
-                    <Coffee size={15} />
-
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em]">
-                      Tổng cộng
-                    </p>
-                  </div>
-
-                  <p className="mt-2 text-lg font-bold text-[#704329]">
-                    {formatPrice(orderInfo.total)}
-                  </p>
-                </div>
-              </div>
-
-              {/* =================================================
-                  ORDER STATUS
-              ================================================== */}
-              <div className="my-8 h-px bg-[#eadfd5]" />
-
+        {order && (
+          <div className="mt-8 rounded-2xl bg-[#fcfaf7] p-5 text-left sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eadfd5] pb-4">
               <div>
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#b86f38]">
-                      Order status
-                    </p>
-
-                    <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[#3f2417]">
-                      Trạng thái đơn hàng
-                    </h3>
-                  </div>
-
-                  <span className="text-xs font-medium text-[#704329]/45">
-                    Đã nhận đơn
-                  </span>
-                </div>
-
-                {/* STATUS TIMELINE */}
-                <div className="mt-8 grid gap-6 sm:grid-cols-3">
-                  {/* STEP 1 */}
-                  <div className="flex flex-col items-center text-center">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full border-4 border-[#f3e9de] bg-[#704329] text-white shadow-[0_8px_20px_rgba(112,67,41,0.15)]">
-                      <Check size={16} />
-                    </div>
-
-                    <p className="mt-3 text-xs font-semibold text-[#3f2417]">
-                      Đã nhận đơn
-                    </p>
-
-                    <p className="mt-1 text-[10px] text-[#704329]/40">
-                      Thành công
-                    </p>
-                  </div>
-
-                  {/* STEP 2 */}
-                  <div className="flex flex-col items-center text-center">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full border-4 border-[#f3e9de] bg-[#704329] text-white shadow-[0_8px_20px_rgba(112,67,41,0.15)]">
-                      <Clock3 size={16} />
-                    </div>
-
-                    <p className="mt-3 text-xs font-semibold text-[#3f2417]">
-                      Đơn hàng đang được chuẩn bị
-                    </p>
-
-                    <p className="mt-1 text-[10px] text-[#704329]/40">
-                      Vui lòng chờ trong giây lát
-                    </p>
-                  </div>
-
-                  {/* STEP 3 */}
-                  <div className="flex flex-col items-center text-center">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full border-4 border-[#f3e9de] bg-white text-[#704329]/25">
-                      <PackageCheck size={16} />
-                    </div>
-
-                    <p className="mt-3 text-xs font-semibold text-[#704329]/45">
-                      Sẵn sàng nhận
-                    </p>
-
-                    <p className="mt-1 text-[10px] text-[#704329]/35">
-                      Đang chờ xử lý
-                    </p>
-                  </div>
-                </div>
+                <p className="text-xs text-[#704329]/55">Mã đơn hàng</p>
+                <p className="mt-1 text-xl font-bold">{order.orderCode}</p>
               </div>
-
-              {/* =================================================
-                  NOTICE
-              ================================================== */}
-              <div className="mt-8 rounded-2xl border border-[#eadfd5] bg-[#f3e9de]/50 p-5">
-                <div className="flex gap-3">
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#704329] text-white">
-                    <Coffee size={15} />
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-semibold text-[#3f2417]">
-                      Cảm ơn bạn đã chọn BrewLite
-                    </p>
-
-                    <p className="mt-1 text-xs leading-6 text-[#704329]/60">
-                      Đơn hàng của bạn đang được chuẩn bị. Bạn có thể theo dõi
-                      lịch sử đơn hàng để xem lại thông tin chi tiết.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* =================================================
-                  ACTIONS
-              ================================================== */}
-              <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                <Link
-                  href="/orders"
-                  className="group flex items-center justify-center gap-2 rounded-2xl border border-[#eadfd5] bg-white px-5 py-4 text-sm font-semibold text-[#3f2417] transition hover:border-[#704329]/30 hover:bg-[#fcfaf7]"
-                >
-                  <ReceiptText size={17} />
-
-                  <span>Xem lịch sử đơn hàng</span>
-
-                  <ArrowRight
-                    size={15}
-                    className="transition-transform group-hover:translate-x-0.5"
-                  />
-                </Link>
-
-                <Link
-                  href="/menu"
-                  className="group flex items-center justify-center gap-2 rounded-2xl bg-[#704329] px-5 py-4 text-sm font-semibold text-white shadow-[0_10px_25px_rgba(112,67,41,0.16)] transition hover:bg-[#5f3824]"
-                >
-                  <ShoppingBag size={17} />
-
-                  <span>Tiếp tục mua hàng</span>
-
-                  <ArrowRight
-                    size={15}
-                    className="transition-transform group-hover:translate-x-0.5"
-                  />
-                </Link>
-              </div>
-
-              {/* HOME */}
-              <div className="mt-5 text-center">
-                <Link
-                  href="/"
-                  className="inline-flex items-center gap-2 text-xs font-medium text-[#704329]/50 transition hover:text-[#704329]"
-                >
-                  <Home size={14} />
-                  Về trang chủ
-                </Link>
-              </div>
+              <span className="rounded-full bg-[#edf6ee] px-3 py-1.5 text-xs font-semibold text-[#3e7145]">
+                {statusLabels[order.status] ?? order.status}
+              </span>
+            </div>
+            <div className="grid gap-4 pt-4 sm:grid-cols-3">
+              <Summary icon={<ShoppingBag size={16} />} label="Số lượng" value={`${totalItems} món`} />
+              <Summary icon={<ReceiptText size={16} />} label="Thanh toán" value={order.paymentMethod || "Chưa thanh toán"} />
+              <Summary icon={<Coffee size={16} />} label="Tổng cộng" value={formatPrice(order.total)} />
             </div>
           </div>
+        )}
+
+        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <Link href="/orders" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#d9c4b2] px-5 py-3.5 text-sm font-semibold text-[#704329] hover:bg-[#f8f1ea]">
+            <ReceiptText size={17} /> Lịch sử đơn hàng <ArrowRight size={15} />
+          </Link>
+          <Link href="/menu" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#704329] px-5 py-3.5 text-sm font-semibold text-white hover:bg-[#5f3824]">
+            <ShoppingBag size={17} /> Tiếp tục mua hàng
+          </Link>
         </div>
+        <Link href="/" className="mt-5 inline-flex items-center gap-2 text-xs font-medium text-[#704329]/55 hover:text-[#704329]">
+          <Home size={14} /> Về trang chủ
+        </Link>
       </section>
     </main>
   );
 }
 
-function OrderSuccessLoading() {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-[#fcfaf7] text-[#3f2417]">
-      <div className="text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#704329] text-white">
-          <Coffee size={24} />
-        </div>
-
-        <p className="mt-5 text-sm font-medium text-[#704329]/60">
-          Đang tải thông tin đơn hàng...
-        </p>
-      </div>
-    </main>
-  );
+function Summary({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return <div>
+    <div className="flex items-center gap-2 text-xs text-[#704329]/50">{icon}{label}</div>
+    <p className="mt-2 text-sm font-bold text-[#3f2417]">{value}</p>
+  </div>;
 }
 
 export default function OrderSuccessPage() {
-  return (
-    <Suspense fallback={<OrderSuccessLoading />}>
-      <OrderSuccessContent />
-    </Suspense>
-  );
+  return <Suspense fallback={<main className="flex min-h-screen items-center justify-center">Đang tải...</main>}><OrderSuccessContent /></Suspense>;
 }
