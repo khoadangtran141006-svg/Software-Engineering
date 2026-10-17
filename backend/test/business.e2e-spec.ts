@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
+import { vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 
 import { User } from '../src/users/entities/user.entity.js';
@@ -28,6 +29,7 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
   let ds: DataSource;
   let orders: OrdersService;
   let payments: PaymentsService;
+  let chargeSpy: ReturnType<typeof vi.spyOn>;
   let userId: number;
   let productId: number;
 
@@ -76,11 +78,18 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
       promotions,
       state,
     );
+    // Cổng thanh toán chậm (60ms) để các request song song thực sự chồng lên nhau, giống môi trường thật/CI.
+    const gateway = new MockPaymentService();
+    const realCharge = gateway.charge.bind(gateway);
+    chargeSpy = vi.spyOn(gateway, 'charge').mockImplementation(async (input) => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      return realCharge(input);
+    });
     payments = new PaymentsService(
       ds.getRepository(Payment),
       ds.getRepository(Order),
       ds,
-      new MockPaymentService(),
+      gateway,
       state,
       promotions,
     );
@@ -91,6 +100,7 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
   });
 
   beforeEach(async () => {
+    chargeSpy.mockClear();
     await ds.query('TRUNCATE payments, order_items, orders, users, products RESTART IDENTITY CASCADE');
     const user = await ds.getRepository(User).save(
       ds.getRepository(User).create({ name: 'Test', email: 't@t.vn', passwordHash: 'x' }),
@@ -148,6 +158,7 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
       const order = await newOrder(1);
       const results = await Promise.allSettled(Array.from({ length: 5 }, () => pay(order.id, 'race-key')));
       expect(results.every((r) => r.status === 'fulfilled')).toBe(true);
+      expect(chargeSpy).toHaveBeenCalledTimes(1); // chỉ gọi cổng thanh toán đúng 1 lần
       expect(await ds.getRepository(Payment).count()).toBe(1);
       expect(await pointsOf()).toBe(3);
       expect((await ds.getRepository(Order).findOneByOrFail({ id: order.id })).status).toBe('PAID');
@@ -157,6 +168,7 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
       const order = await newOrder(1);
       const results = await Promise.allSettled([pay(order.id, 'key-1'), pay(order.id, 'key-2')]);
       expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      expect(chargeSpy).toHaveBeenCalledTimes(1);
       expect(await ds.getRepository(Payment).count({ where: { status: 'SUCCEEDED' } })).toBe(1);
       expect(await pointsOf()).toBe(3);
     });

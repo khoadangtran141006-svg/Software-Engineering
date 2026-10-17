@@ -3,8 +3,8 @@ import { PaymentsService } from './payments.service.js';
 import { OrderStateService } from '../orders/order-state.service.js';
 import { PromotionsService } from '../promotions/promotions.service.js';
 import { OrderStatus } from '../orders/order-status.enum.js';
-import type { Order } from '../orders/entities/order.entity.js';
-import type { Payment } from './entities/payment.entity.js';
+import { Order } from '../orders/entities/order.entity.js';
+import { Payment } from './entities/payment.entity.js';
 import type { DataSource, Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity.js';
 
@@ -28,7 +28,7 @@ describe('PaymentsService', () => {
     Object.assign(order, { status: OrderStatus.PENDING, paymentMethod: null });
     paymentRepository.findOne.mockResolvedValue(null);
     orderRepository.findOne.mockResolvedValue(order);
-    manager.findOne.mockResolvedValue(order);
+    manager.findOne.mockImplementation(async (entity: unknown) => (entity === Order ? order : null));
     manager.save.mockImplementation(async (...args: unknown[]) => args.at(-1));
     manager.create.mockImplementation((_entity: unknown, data: unknown) => data);
     mock.charge.mockResolvedValue({ success: true, reference: 'mock-ref' });
@@ -55,6 +55,20 @@ describe('PaymentsService', () => {
     const result = await service.pay({ orderId: 2, method: 'QR Code', token: 'approved' }, 'idem-1', 5);
     expect(result).toEqual(payment);
     expect(mock.charge).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the existing payment without charging again when a parallel request with the same key finished while waiting for the order lock', async () => {
+    manager.findOne.mockImplementation(async (entity: unknown) => (entity === Order ? order : entity === Payment ? payment : null));
+    const result = await service.pay({ orderId: 2, method: 'QR Code', token: 'approved' }, 'idem-1', 5);
+    expect(result).toEqual(payment);
+    expect(mock.charge).not.toHaveBeenCalled();
+    expect(manager.increment).not.toHaveBeenCalled();
+  });
+
+  it('rejects paying an order that is no longer awaiting payment', async () => {
+    order.status = OrderStatus.PAID;
+    await expect(service.pay({ orderId: 2, method: 'QR Code', token: 'approved' }, 'other-key', 5)).rejects.toBeInstanceOf(BadRequestException);
+    expect(mock.charge).not.toHaveBeenCalled();
   });
 
   it('does not allow an idempotency key to be reused for another order', async () => {
