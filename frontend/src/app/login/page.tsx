@@ -4,9 +4,9 @@ import Link from "next/link";
 import { ArrowLeft, Eye, EyeOff, LockKeyhole } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { signIn } from "@/services/auth";
+import { EMAIL_PATTERN } from "@/lib/email";
 import { useRouter } from "next/navigation";
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN_LENGTH = 8;
 
 export default function LoginPage() {

@@ -18,7 +18,9 @@ Yêu cầu Node.js 22+ và PostgreSQL 16+.
 2. Trong `backend`, chạy `npm ci`, `npm run db:migrate`, `npm run db:seed`, rồi `npm run start:dev`.
 3. Trong `frontend`, tạo `.env.local` với `NEXT_PUBLIC_API_URL=http://localhost:3001`, chạy `npm ci`, rồi `npm run dev`.
 
-API tài khoản: `POST /auth/register`, `POST /auth/login`. Đơn hàng yêu cầu bearer token: `POST /orders`, `GET /orders/me`. Thanh toán mô phỏng dùng `POST /payments` cùng header `Idempotency-Key`. Mã khuyến mãi demo: `BREW10` (giảm 10%, kiểm tra trước bằng `GET /promotions/validate?code=BREW10&subtotal=100000`). Giao dịch mô phỏng thất bại khi token là `decline` hoặc số thẻ test `4000 0000 0000 0002`; số thẻ `4242 4242 4242 4242` luôn thành công. `GET /auth/me` trả thông tin tài khoản kèm điểm thưởng (1 điểm cho mỗi 10.000đ sau khi đơn PAID).
+API tài khoản: `POST /auth/register`, `POST /auth/login`. Đơn hàng yêu cầu bearer token: `POST /orders`, `GET /orders/me`. Thanh toán mô phỏng dùng `POST /payments` cùng header `Idempotency-Key`. Quy tắc kiểm tra dữ liệu thanh toán (backend kiểm tra lại, không chỉ frontend): **Thẻ ngân hàng** cần 16–19 chữ số (`cardNumber`); **Ví điện tử** cần chọn ví (MoMo/ZaloPay/ShopeePay), số điện thoại di động Việt Nam 10 số và mã OTP 6 chữ số (OTP demo `123456` thành công, mã khác bị từ chối). Email đăng ký bị từ chối nếu gõ sai tên miền phổ biến (ví dụ `gmail.co`, `gmail.con`). Số lượng trong giỏ không thể vượt tồn kho của sản phẩm (tồn kho tính chung cho mọi size/topping).
+
+Mã khuyến mãi demo: `BREW10` (giảm 10%, kiểm tra trước bằng `GET /promotions/validate?code=BREW10&subtotal=100000`). Giao dịch mô phỏng thất bại khi token là `decline` hoặc số thẻ test `4000 0000 0000 0002`; số thẻ `4242 4242 4242 4242` luôn thành công. `GET /auth/me` trả thông tin tài khoản kèm điểm thưởng (1 điểm cho mỗi 10.000đ sau khi đơn PAID).
 
 Quên mật khẩu dùng `POST /auth/forgot-password` và `POST /auth/reset-password`. Token đặt lại được băm khi lưu, chỉ dùng một lần và hết hạn sau 15 phút. Ở môi trường phát triển, API trả token để demo; ở production cần cấu hình `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` để gửi liên kết qua email.
 

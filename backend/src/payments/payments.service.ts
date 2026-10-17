@@ -44,7 +44,12 @@ export class PaymentsService {
         this.state.assertTransition(OrderStatus.PAYMENT_FAILED, OrderStatus.PENDING);
         order.status = OrderStatus.PENDING;
       }
-      const charge = await this.mock.charge(dto.token);
+      const charge = await this.mock.charge({
+        method: dto.method,
+        token: dto.token,
+        cardNumber: dto.cardNumber,
+        otp: dto.otp,
+      });
       const nextStatus = charge.success ? OrderStatus.PAID : OrderStatus.PAYMENT_FAILED;
       this.state.assertTransition(order.status as OrderStatus, nextStatus);
       order.status = nextStatus;

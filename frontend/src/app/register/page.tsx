@@ -11,8 +11,8 @@ import {
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signUp } from "@/services/auth";
+import { EMAIL_PATTERN, suggestEmailFix } from "@/lib/email";
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN_LENGTH = 8;
 
 export default function RegisterPage() {
@@ -36,9 +36,14 @@ export default function RegisterPage() {
     useState(false);
 
   function validateEmail(value: string) {
+    const suggestion = suggestEmailFix(value);
     const message = !value.trim()
       ? "Vui l\u00f2ng \u0111i\u1ec1n th\u00f4ng tin"
-      : EMAIL_PATTERN.test(value.trim()) ? "" : "Email kh\u00f4ng h\u1ee3p l\u1ec7";
+      : !EMAIL_PATTERN.test(value.trim())
+        ? "Email kh\u00f4ng h\u1ee3p l\u1ec7"
+        : suggestion
+          ? `Email c\u00f3 v\u1ebb b\u1ecb g\u00f5 sai t\u00ean mi\u1ec1n. \u00dd b\u1ea1n l\u00e0 ${suggestion}?`
+          : "";
     setEmailError(message);
     return !message;
   }
