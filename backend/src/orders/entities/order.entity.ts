@@ -15,7 +15,7 @@ export class Order {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ unique: true, length: 30 })
+  @Column({ type: 'varchar', unique: true, length: 30 })
   orderCode!: string;
 
   @Column({

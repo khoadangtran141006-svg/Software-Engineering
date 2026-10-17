@@ -49,6 +49,10 @@ export default function PaymentPage() {
   const [walletAccount, setWalletAccount] =
     useState("");
   const [cardNumber, setCardNumber] = useState("");
+  const [promoInput, setPromoInput] = useState("");
+  const [promoApplied, setPromoApplied] = useState<{ code: string; discount: number } | null>(null);
+  const [promoMessage, setPromoMessage] = useState("");
+  const [promoChecking, setPromoChecking] = useState(false);
   const [paymentError, setPaymentError] = useState("");
   const [pendingOrder, setPendingOrder] = useState<{ id: number; orderCode: string; total: number } | null>(null);
 
@@ -68,7 +72,34 @@ export default function PaymentPage() {
   }, [cartItems]);
 
   const serviceFee = 0;
-  const total = subtotal + serviceFee;
+  const discount = promoApplied?.discount ?? 0;
+  const total = subtotal + serviceFee - discount;
+
+  async function applyPromo() {
+    const code = promoInput.trim();
+    if (!code || promoChecking) return;
+    setPromoChecking(true);
+    setPromoMessage("");
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+      const response = await fetch(`${apiUrl}/promotions/validate?code=${encodeURIComponent(code)}&subtotal=${subtotal}`);
+      const result = await response.json();
+      if (!response.ok) throw new Error(typeof result.message === "string" ? result.message : "Mã khuyến mãi không hợp lệ");
+      setPromoApplied({ code: result.code, discount: result.discount });
+      setPromoMessage(`Đã áp dụng mã ${result.code}`);
+    } catch (cause) {
+      setPromoApplied(null);
+      setPromoMessage(cause instanceof Error ? cause.message : "Không thể kiểm tra mã khuyến mãi");
+    } finally {
+      setPromoChecking(false);
+    }
+  }
+
+  function removePromo() {
+    setPromoApplied(null);
+    setPromoInput("");
+    setPromoMessage("");
+  }
 
   /*
    * MOCK PAYMENT FLOW
@@ -103,7 +134,7 @@ export default function PaymentPage() {
         const orderResponse = await fetch(`${apiUrl}/orders`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ items: cartItems.map((item) => ({ productId: item.id, size: item.size, quantity: item.quantity, toppings: item.toppings })) }),
+          body: JSON.stringify({ items: cartItems.map((item) => ({ productId: item.id, size: item.size, quantity: item.quantity, toppings: item.toppings })), promotionCode: promoApplied?.code }),
         });
         const result = await orderResponse.json();
         if (!orderResponse.ok) throw new Error(result.message ?? "Không thể tạo đơn hàng");
@@ -658,6 +689,50 @@ export default function PaymentPage() {
                 </div>
 
                 {/* =================================================
+                    PROMO CODE
+                ================================================== */}
+                <div className="mt-5">
+                  <label htmlFor="promo-code" className="block text-sm font-semibold text-[#3f2417]">
+                    Mã khuyến mãi
+                  </label>
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      id="promo-code"
+                      type="text"
+                      value={promoInput}
+                      onChange={(event) => setPromoInput(event.target.value)}
+                      disabled={Boolean(promoApplied) || Boolean(pendingOrder)}
+                      placeholder="Nhập mã (ví dụ BREW10)"
+                      className="h-12 min-w-0 flex-1 rounded-2xl border border-[#dfd0c3] bg-white px-4 text-sm uppercase text-[#3f2417] outline-none transition placeholder:normal-case placeholder:text-[#704329]/30 focus:border-[#704329]/50 focus:ring-4 focus:ring-[#704329]/8 disabled:bg-[#f8f1ea]"
+                    />
+                    {promoApplied ? (
+                      <button
+                        type="button"
+                        onClick={removePromo}
+                        disabled={Boolean(pendingOrder)}
+                        className="h-12 rounded-2xl border border-[#dfd0c3] px-4 text-sm font-semibold text-[#704329] transition hover:bg-[#f8f1ea] disabled:opacity-60"
+                      >
+                        Bỏ mã
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={applyPromo}
+                        disabled={promoChecking || !promoInput.trim()}
+                        className="h-12 rounded-2xl bg-[#704329] px-4 text-sm font-semibold text-white transition hover:bg-[#5b3522] disabled:opacity-60"
+                      >
+                        {promoChecking ? "Đang kiểm tra..." : "Áp dụng"}
+                      </button>
+                    )}
+                  </div>
+                  {promoMessage && (
+                    <p role="status" className={`mt-2 text-xs ${promoApplied ? "text-green-700" : "text-red-700"}`}>
+                      {promoMessage}
+                    </p>
+                  )}
+                </div>
+
+                {/* =================================================
                     ORDER SUMMARY
                 ================================================== */}
                 <div className="my-6 h-px bg-[#eadfd5]" />
@@ -684,6 +759,13 @@ export default function PaymentPage() {
                         : formatPrice(serviceFee)}
                     </span>
                   </div>
+
+                  {discount > 0 && (
+                    <div className="flex items-center justify-between gap-4 text-sm">
+                      <span className="text-[#704329]/60">{`Giảm giá (${promoApplied?.code})`}</span>
+                      <span className="font-medium text-green-700">{`-${formatPrice(discount)}`}</span>
+                    </div>
+                  )}
 
                   <div className="flex items-end justify-between gap-4 pt-1">
                     <span className="text-sm font-semibold text-[#3f2417]">

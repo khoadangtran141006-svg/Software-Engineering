@@ -8,11 +8,16 @@ export class InventoryService {
     const result = await manager
       .createQueryBuilder()
       .update(Product)
-      .set({ stock: () => `stock - ${quantity}` })
+      .set({ stock: () => 'stock - :quantity' })
       .where('id = :id AND stock >= :quantity', { id: product.id, quantity })
       .execute();
     if (!result.affected) {
       throw new BadRequestException(`Sản phẩm "${product.name}" không đủ số lượng trong kho`);
     }
+  }
+
+  /** Hoàn lại tồn kho (ví dụ khi đơn bị hủy). */
+  async release(manager: EntityManager, productId: number, quantity: number) {
+    await manager.increment(Product, { id: productId }, 'stock', quantity);
   }
 }

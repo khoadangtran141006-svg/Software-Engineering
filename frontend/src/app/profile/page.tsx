@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, LogOut, ReceiptText, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getCurrentUser, getToken, signOut, type AuthUser } from "@/services/auth";
+import { fetchMe, getCurrentUser, getToken, signOut, type AuthUser } from "@/services/auth";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -18,6 +18,10 @@ export default function ProfilePage() {
     }
     setUser(getCurrentUser());
     setLoading(false);
+    // Lấy dữ liệu mới nhất (điểm thưởng) từ backend.
+    fetchMe().then((me) => {
+      if (me) setUser(me);
+    });
   }, [router]);
 
   function handleSignOut() {
@@ -43,6 +47,11 @@ export default function ProfilePage() {
               <h2 className="text-lg font-semibold">{"Tài khoản"}</h2>
               <p className="mt-1 text-sm text-[#704329]/65">{user?.name ?? "BrewLite customer"}</p>
               <p className="text-sm text-[#704329]/65">{user?.email ?? ""}</p>
+              {typeof user?.loyaltyPoints === "number" && (
+                <p className="mt-2 inline-flex rounded-full bg-[#704329] px-3 py-1 text-xs font-semibold text-white">
+                  {`${user.loyaltyPoints} điểm thưởng`}
+                </p>
+              )}
             </div>
           </div>
 

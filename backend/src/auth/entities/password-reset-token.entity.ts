@@ -6,10 +6,10 @@ export class PasswordResetToken {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column()
+  @Column({ type: 'integer' })
   userId!: number;
 
-  @Column({ unique: true, length: 64 })
+  @Column({ type: 'varchar', unique: true, length: 64 })
   tokenHash!: string;
 
   @Column({ type: 'timestamp' })

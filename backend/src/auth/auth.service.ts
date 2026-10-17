@@ -105,7 +105,21 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role,
+        loyaltyPoints: user.loyaltyPoints,
       },
+    };
+  }
+
+  async me(userId: number) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Tài khoản không tồn tại');
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      loyaltyPoints: user.loyaltyPoints,
     };
   }
 

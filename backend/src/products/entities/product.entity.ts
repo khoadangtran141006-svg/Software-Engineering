@@ -9,10 +9,10 @@ export class Product {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ length: 120 })
+  @Column({ type: 'varchar', length: 120 })
   name: string;
 
-  @Column({ length: 50 })
+  @Column({ type: 'varchar', length: 50 })
   category: string;
 
   @Column({ type: 'integer' })

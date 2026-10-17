@@ -2,9 +2,14 @@ import {
   Body,
   Controller,
   HttpCode,
+  Get,
   HttpStatus,
   Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
+import { JwtAuthGuard } from './jwt-auth.guard.js';
 
 import { LoginDto } from './dto/login.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
@@ -26,6 +31,12 @@ export class AuthController {
   @Post('login')
   login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  me(@Req() request: Request & { user: { id: number } }) {
+    return this.authService.me(request.user.id);
   }
 
   @Post('forgot-password')

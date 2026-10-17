@@ -5,16 +5,16 @@ export class Payment {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ unique: true, length: 100 })
+  @Column({ type: 'varchar', unique: true, length: 100 })
   idempotencyKey!: string;
 
   @Column({ type: 'integer' })
   orderId!: number;
 
-  @Column({ length: 30 })
+  @Column({ type: 'varchar', length: 30 })
   method!: string;
 
-  @Column({ length: 30 })
+  @Column({ type: 'varchar', length: 30 })
   status!: 'SUCCEEDED' | 'FAILED';
 
   @Column({ type: 'integer' })
