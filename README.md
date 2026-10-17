@@ -18,9 +18,13 @@ Yêu cầu Node.js 22+ và PostgreSQL 16+.
 2. Trong `backend`, chạy `npm ci`, `npm run db:migrate`, `npm run db:seed`, rồi `npm run start:dev`.
 3. Trong `frontend`, tạo `.env.local` với `NEXT_PUBLIC_API_URL=http://localhost:3001`, chạy `npm ci`, rồi `npm run dev`.
 
-API tài khoản: `POST /auth/register`, `POST /auth/login`. Đơn hàng yêu cầu bearer token: `POST /orders`, `GET /orders/me`. Thanh toán mô phỏng dùng `POST /payments` cùng header `Idempotency-Key`. Mã khuyến mãi demo: `BREW10`; token thanh toán `decline` mô phỏng giao dịch thất bại.
+API tài khoản: `POST /auth/register`, `POST /auth/login`. Đơn hàng yêu cầu bearer token: `POST /orders`, `GET /orders/me`. Thanh toán mô phỏng dùng `POST /payments` cùng header `Idempotency-Key`. Mã khuyến mãi demo: `BREW10` (giảm 10%, kiểm tra trước bằng `GET /promotions/validate?code=BREW10&subtotal=100000`). Giao dịch mô phỏng thất bại khi token là `decline` hoặc số thẻ test `4000 0000 0000 0002`; số thẻ `4242 4242 4242 4242` luôn thành công. `GET /auth/me` trả thông tin tài khoản kèm điểm thưởng (1 điểm cho mỗi 10.000đ sau khi đơn PAID).
 
 Quên mật khẩu dùng `POST /auth/forgot-password` và `POST /auth/reset-password`. Token đặt lại được băm khi lưu, chỉ dùng một lần và hết hạn sau 15 phút. Ở môi trường phát triển, API trả token để demo; ở production cần cấu hình `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` để gửi liên kết qua email.
+
+## Tài khoản nhân viên (barista) để demo
+
+Đặt `STAFF_EMAIL` và `STAFF_PASSWORD` trong `.env` rồi khởi động lại backend; tài khoản STAFF được tạo tự động. Đăng nhập bằng `POST /auth/login` để lấy token, sau đó đổi trạng thái đơn bằng `PATCH /orders/:id/status` với body `{ "status": "PREPARING" }` (lần lượt `PREPARING` → `READY` → `COMPLETED`; `CANCELLED` sẽ hoàn lại tồn kho). Chuyển trạng thái sai sẽ bị từ chối với lỗi 400.
 
 ## 10 task
 
@@ -31,13 +35,15 @@ Quên mật khẩu dùng `POST /auth/forgot-password` và `POST /auth/reset-pass
 - T5: giỏ hàng, cập nhật số lượng, xóa món và lưu trên trình duyệt.
 - T6: tạo đơn, kiểm tra giá/tồn kho và gắn đơn với tài khoản.
 - T7: đăng ký, đăng nhập bcrypt/JWT và bảo vệ API.
-- T8: thanh toán mô phỏng cho QR/ví, kết quả thành công/thất bại.
+- T8: thanh toán mô phỏng cho QR/ví/thẻ ngân hàng, kết quả thành công/thất bại.
 - T9: xác nhận đơn, lịch sử đơn và hướng dẫn chạy bằng Docker.
 - T10: chuyển trạng thái đơn, idempotency thanh toán, giữ tồn kho đồng thời, mã giảm giá và điểm thưởng.
 
 ## Kiểm tra
 
 Trong `backend`, chạy `npm test`, `npm run test:e2e` và `npm run build`. Trong `frontend`, chạy `npm run build`.
+
+`test/business.e2e-spec.ts` là integration test chạy trên PostgreSQL thật để chứng minh Task 10: chặn chuyển trạng thái sai, Idempotency-Key (kể cả gửi đồng thời), không bán quá tồn kho khi đặt đồng thời, hoàn kho khi hủy đơn, khuyến mãi và điểm thưởng. Test dùng một database riêng (mặc định `brewlite_test` trên `localhost:5432`, user `postgres`) và **xóa sạch schema của database đó mỗi lần chạy**. Tạo database bằng `createdb brewlite_test` hoặc `docker run -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16`, rồi đặt `TEST_DB_PASSWORD` (và `TEST_DB_HOST`, `TEST_DB_PORT`, `TEST_DB_USER`, `TEST_DB_NAME` nếu khác mặc định).
 
 ## Ghi chú
 

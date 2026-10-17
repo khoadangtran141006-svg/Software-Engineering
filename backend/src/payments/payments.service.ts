@@ -23,7 +23,7 @@ export class PaymentsService {
   ) {}
 
   async pay(dto: CreatePaymentDto, key: string, userId: number) {
-    if (!key || key.length > 100) throw new BadRequestException('Idempotency-Key заголовок là bắt buộc');
+    if (!key || key.length > 100) throw new BadRequestException('Header Idempotency-Key là bắt buộc');
     const previous = await this.payments.findOne({ where: { idempotencyKey: key } });
     if (previous) {
       if (previous.orderId !== dto.orderId) throw new BadRequestException('Idempotency-Key đã được dùng cho đơn hàng khác');
@@ -33,7 +33,11 @@ export class PaymentsService {
     }
     try {
       return await this.dataSource.transaction(async (manager) => {
-      const order = await manager.findOne(Order, { where: { id: dto.orderId } });
+      // Khóa dòng đơn hàng để hai yêu cầu song song (khác key) không cùng thanh toán một đơn.
+      const order = await manager.findOne(Order, {
+        where: { id: dto.orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
       if (order.userId !== userId) throw new ForbiddenException('Bạn không có quyền thanh toán đơn hàng này');
       if (order.status === OrderStatus.PAYMENT_FAILED) {

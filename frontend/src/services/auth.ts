@@ -1,7 +1,7 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 const TOKEN_KEY = "brewlite-token";
 
-export type AuthUser = { id: number; name: string; email: string };
+export type AuthUser = { id: number; name: string; email: string; role?: "CUSTOMER" | "STAFF"; loyaltyPoints?: number };
 
 async function postAuth<T>(path: string, body: unknown): Promise<T> {
   let response: Response;
@@ -63,6 +63,18 @@ export async function requestPasswordReset(email: string) {
 
 export async function resetPassword(token: string, password: string) {
   return postAuth<{ message: string }>("/auth/reset-password", { token, password });
+}
+
+export async function fetchMe(): Promise<AuthUser | null> {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const response = await fetch(`${API_URL}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) return null;
+    return (await response.json()) as AuthUser;
+  } catch {
+    return null;
+  }
 }
 
 export function signOut() {

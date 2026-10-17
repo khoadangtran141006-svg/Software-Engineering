@@ -111,11 +111,26 @@ export class OrdersService {
   }
 
   async updateStatus(id: number, next: OrderStatus) {
-    const order = await this.orderRepository.findOne({ where: { id } });
-    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
-    this.orderState.assertTransition(order.status as OrderStatus, next);
-    order.status = next;
-    return this.orderRepository.save(order);
+    return this.dataSource.transaction(async (manager) => {
+      const order = await manager.findOne(Order, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+
+      this.orderState.assertTransition(order.status as OrderStatus, next);
+
+      if (next === OrderStatus.CANCELLED) {
+        // Đơn bị hủy thì trả lại số lượng đã giữ chỗ lúc tạo đơn.
+        const items = await manager.find(OrderItem, { where: { orderId: order.id } });
+        for (const item of items) {
+          await this.inventory.release(manager, item.productId, item.quantity);
+        }
+      }
+
+      order.status = next;
+      return manager.save(order);
+    });
   }
 
   private getSizeExtra(size: string): number {

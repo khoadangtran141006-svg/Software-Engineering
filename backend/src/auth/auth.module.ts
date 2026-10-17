@@ -8,6 +8,7 @@ import { PasswordResetToken } from './entities/password-reset-token.entity.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtStrategy } from './jwt.strategy.js';
+import { StaffSeedService } from './staff-seed.service.js';
 
 @Module({
   imports: [
@@ -27,7 +28,7 @@ import { JwtStrategy } from './jwt.strategy.js';
 
   controllers: [AuthController],
 
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, StaffSeedService],
 
   exports: [AuthService, JwtModule],
 })
