@@ -28,7 +28,7 @@ export type Order = {
   id: string;
   createdAt: string;
   status: OrderStatus;
-  paymentMethod: "QR Code" | "Ví điện tử";
+  paymentMethod: "QR Code" | "Ví điện tử" | "Thẻ ngân hàng";
   items: OrderItem[];
   totalQuantity: number;
   total: number;
