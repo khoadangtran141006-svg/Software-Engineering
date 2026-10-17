@@ -134,7 +134,7 @@ export default function OrdersPage() {
           id: order.orderCode,
           createdAt: order.createdAt,
           status: order.status,
-          paymentMethod: order.paymentMethod === "Ví điện tử" ? "Ví điện tử" : "QR Code",
+          paymentMethod: (["Ví điện tử", "Thẻ ngân hàng"] as const).find((method) => method === order.paymentMethod) ?? "QR Code",
           items: order.items.map((item) => ({ id: item.id, name: item.product.name, image: item.product.imageUrl, category: item.product.category, size: item.size, toppings: item.toppings ?? [], note: "", unitPrice: Math.floor(item.lineTotal / item.quantity), quantity: item.quantity })),
           totalQuantity: order.items.reduce((sum, item) => sum + item.quantity, 0),
           total: order.total,

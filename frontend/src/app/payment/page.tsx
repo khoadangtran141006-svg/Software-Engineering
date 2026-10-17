@@ -23,7 +23,13 @@ function formatPrice(price: number) {
   return `${price.toLocaleString("vi-VN")}đ`;
 }
 
-type PaymentMethod = "qr" | "wallet";
+type PaymentMethod = "qr" | "wallet" | "card";
+
+const METHOD_LABEL = {
+  qr: "QR Code",
+  wallet: "Ví điện tử",
+  card: "Thẻ ngân hàng",
+} as const satisfies Record<PaymentMethod, string>;
 
 export default function PaymentPage() {
   const router = useRouter();
@@ -42,6 +48,7 @@ export default function PaymentPage() {
 
   const [walletAccount, setWalletAccount] =
     useState("");
+  const [cardNumber, setCardNumber] = useState("");
   const [paymentError, setPaymentError] = useState("");
   const [pendingOrder, setPendingOrder] = useState<{ id: number; orderCode: string; total: number } | null>(null);
 
@@ -82,6 +89,11 @@ export default function PaymentPage() {
       router.push("/login?next=/payment");
       return;
     }
+    const cardDigits = cardNumber.replace(/\D/g, "");
+    if (paymentMethod === "card" && cardDigits.length < 12) {
+      setPaymentError("Số thẻ không hợp lệ. Vui lòng nhập ít nhất 12 chữ số.");
+      return;
+    }
     setPaymentError("");
     setIsProcessing(true);
     try {
@@ -102,12 +114,12 @@ export default function PaymentPage() {
       const paymentResponse = await fetch(`${apiUrl}/payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() },
-        body: JSON.stringify({ orderId: order.id, method: paymentMethod === "wallet" ? "Ví điện tử" : "QR Code", token: walletAccount || "approved" }),
+        body: JSON.stringify({ orderId: order.id, method: METHOD_LABEL[paymentMethod], token: paymentMethod === "card" ? cardDigits : walletAccount || "approved" }),
       });
       const payment = await paymentResponse.json();
       if (!paymentResponse.ok) throw new Error(payment.message ?? "Thanh toán thất bại");
       if (payment.status !== "SUCCEEDED") throw new Error("Giao dịch bị từ chối. Hãy thử lại.");
-      addOrder({ id: order.orderCode, createdAt: new Date().toISOString(), status: "PAID", paymentMethod: paymentMethod === "wallet" ? "Ví điện tử" : "QR Code", items: cartItems.map((item) => ({ id: item.id, name: item.name, image: item.image, category: item.category, size: item.size, toppings: [...item.toppings], note: item.note, unitPrice: item.unitPrice, quantity: item.quantity })), totalQuantity, total: order.total });
+      addOrder({ id: order.orderCode, createdAt: new Date().toISOString(), status: "PAID", paymentMethod: METHOD_LABEL[paymentMethod], items: cartItems.map((item) => ({ id: item.id, name: item.name, image: item.image, category: item.category, size: item.size, toppings: [...item.toppings], note: item.note, unitPrice: item.unitPrice, quantity: item.quantity })), totalQuantity, total: order.total });
       clearCart();
       setPendingOrder(null);
       router.push(`/order-success?payment=${paymentMethod}&order=${order.orderCode}`);
@@ -477,6 +489,52 @@ export default function PaymentPage() {
                         </div>
                       </div>
                     </button>
+
+                    {/* BANK CARD */}
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod("card")}
+                      aria-pressed={paymentMethod === "card"}
+                      className={`w-full rounded-2xl border p-4 text-left transition ${
+                        paymentMethod === "card"
+                          ? "border-[#704329] bg-[#f8f1ea] shadow-sm"
+                          : "border-[#eadfd5] bg-white hover:border-[#d9c4b2] hover:bg-[#fcfaf7]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                            paymentMethod === "card"
+                              ? "bg-[#704329] text-white"
+                              : "bg-[#f3e9de] text-[#704329]"
+                          }`}
+                        >
+                          <CreditCard size={19} />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-semibold text-[#3f2417]">
+                              Thẻ ngân hàng
+                            </p>
+
+                            <span
+                              className={`flex h-5 w-5 items-center justify-center rounded-full border ${
+                                paymentMethod === "card"
+                                  ? "border-[#704329] bg-[#704329] text-white"
+                                  : "border-[#d9c4b2] bg-white"
+                              }`}
+                            >
+                              {paymentMethod === "card" && <Check size={12} />}
+                            </span>
+                          </div>
+
+                          <p className="mt-1 text-xs text-[#704329]/50">
+                            Thanh toán bằng thẻ ATM/Visa/Mastercard
+                          </p>
+                        </div>
+                      </div>
+                    </button>
                   </div>
                 </div>
 
@@ -524,6 +582,42 @@ export default function PaymentPage() {
                           tử và quét mã QR để tiếp tục.
                         </p>
                       </div>
+                    </div>
+                  ) : paymentMethod === "card" ? (
+                    <div className="rounded-2xl border border-[#eadfd5] bg-[#fcfaf7] p-5">
+                      <label
+                        htmlFor="card-number"
+                        className="block text-sm font-semibold text-[#3f2417]"
+                      >
+                        Số thẻ
+                      </label>
+
+                      <div className="relative mt-3">
+                        <CreditCard
+                          size={17}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 text-[#704329]/35"
+                        />
+
+                        <input
+                          id="card-number"
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          maxLength={23}
+                          value={cardNumber}
+                          onChange={(event) =>
+                            setCardNumber(event.target.value)
+                          }
+                          placeholder="4242 4242 4242 4242"
+                          className="h-12 w-full rounded-2xl border border-[#dfd0c3] bg-white pl-11 pr-4 text-sm text-[#3f2417] outline-none transition placeholder:text-[#704329]/30 focus:border-[#704329]/50 focus:ring-4 focus:ring-[#704329]/8"
+                        />
+                      </div>
+
+                      <p className="mt-3 text-xs leading-5 text-[#704329]/45">
+                        Giao diện mô phỏng, không lưu thông tin thẻ. Dùng số
+                        4000 0000 0000 0002 để thử trường hợp thanh toán bị từ
+                        chối.
+                      </p>
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-[#eadfd5] bg-[#fcfaf7] p-5">

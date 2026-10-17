@@ -6,7 +6,7 @@ export class CreatePaymentDto {
   orderId!: number;
 
   @IsString()
-  @IsIn(['QR Code', 'Ví điện tử', 'Card'])
+  @IsIn(['QR Code', 'Ví điện tử', 'Thẻ ngân hàng'])
   method!: string;
 
   @IsString()
