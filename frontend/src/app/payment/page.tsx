@@ -25,6 +25,19 @@ function formatPrice(price: number) {
 
 type PaymentMethod = "qr" | "wallet" | "card";
 
+const WALLET_PROVIDERS = ["MoMo", "ZaloPay", "ShopeePay"] as const;
+type WalletProvider = (typeof WALLET_PROVIDERS)[number];
+const VN_MOBILE_REGEX = /^0(3|5|7|8|9)\d{8}$/;
+
+function formatCardNumber(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 19);
+  return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
+}
+
+function maskPhone(phone: string) {
+  return phone.length >= 10 ? `${phone.slice(0, 3)}****${phone.slice(-3)}` : phone;
+}
+
 const METHOD_LABEL = {
   qr: "QR Code",
   wallet: "Ví điện tử",
@@ -49,6 +62,12 @@ export default function PaymentPage() {
   const [walletAccount, setWalletAccount] =
     useState("");
   const [cardNumber, setCardNumber] = useState("");
+  const [cardError, setCardError] = useState("");
+  const [walletProvider, setWalletProvider] = useState<WalletProvider>("MoMo");
+  const [walletError, setWalletError] = useState("");
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpError, setOtpError] = useState("");
   const [promoInput, setPromoInput] = useState("");
   const [promoApplied, setPromoApplied] = useState<{ code: string; discount: number } | null>(null);
   const [promoMessage, setPromoMessage] = useState("");
@@ -115,16 +134,52 @@ export default function PaymentPage() {
    */
   async function handlePayment() {
     if (cartItems.length === 0 || isProcessing) return;
+    if (!getToken()) {
+      router.push("/login?next=/payment");
+      return;
+    }
+
+    if (paymentMethod === "card") {
+      const digits = cardNumber.replace(/\D/g, "");
+      if (digits.length < 16 || digits.length > 19) {
+        setCardError("Số thẻ phải gồm 16–19 chữ số.");
+        return;
+      }
+      setCardError("");
+    }
+
+    if (paymentMethod === "wallet") {
+      if (!VN_MOBILE_REGEX.test(walletAccount.trim())) {
+        setWalletError("Số điện thoại ví không hợp lệ (10 số, bắt đầu 03, 05, 07, 08 hoặc 09).");
+        return;
+      }
+      setWalletError("");
+      // Giống Shopee/TikTok Shop: xác nhận giao dịch trên ví bằng mã OTP trước khi trừ tiền.
+      setOtp("");
+      setOtpError("");
+      setOtpOpen(true);
+      return;
+    }
+
+    await submitPayment();
+  }
+
+  async function confirmWalletOtp() {
+    if (!/^\d{6}$/.test(otp)) {
+      setOtpError("Mã OTP gồm 6 chữ số.");
+      return;
+    }
+    setOtpOpen(false);
+    await submitPayment(otp);
+  }
+
+  async function submitPayment(otpValue?: string) {
     const token = getToken();
     if (!token) {
       router.push("/login?next=/payment");
       return;
     }
     const cardDigits = cardNumber.replace(/\D/g, "");
-    if (paymentMethod === "card" && cardDigits.length < 12) {
-      setPaymentError("Số thẻ không hợp lệ. Vui lòng nhập ít nhất 12 chữ số.");
-      return;
-    }
     setPaymentError("");
     setIsProcessing(true);
     try {
@@ -145,7 +200,15 @@ export default function PaymentPage() {
       const paymentResponse = await fetch(`${apiUrl}/payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() },
-        body: JSON.stringify({ orderId: order.id, method: METHOD_LABEL[paymentMethod], token: paymentMethod === "card" ? cardDigits : walletAccount || "approved" }),
+        body: JSON.stringify({
+          orderId: order.id,
+          method: METHOD_LABEL[paymentMethod],
+          ...(paymentMethod === "card"
+            ? { cardNumber: cardDigits }
+            : paymentMethod === "wallet"
+              ? { walletProvider, walletPhone: walletAccount.trim(), otp: otpValue }
+              : { token: "approved" }),
+        }),
       });
       const payment = await paymentResponse.json();
       if (!paymentResponse.ok) throw new Error(payment.message ?? "Thanh toán thất bại");
@@ -634,29 +697,75 @@ export default function PaymentPage() {
                           type="text"
                           inputMode="numeric"
                           autoComplete="off"
-                          maxLength={23}
+                          pattern="[0-9]*"
+                          maxLength={19}
                           value={cardNumber}
-                          onChange={(event) =>
-                            setCardNumber(event.target.value)
-                          }
-                          placeholder="4242 4242 4242 4242"
+                          aria-invalid={Boolean(cardError)}
+                          onChange={(event) => {
+                            // Chỉ giữ chữ số và KHÔNG tự chèn dấu cách vào ô nhập,
+                            // để con trỏ không bị nhảy và người dùng nhập đúng số họ muốn.
+                            setCardNumber(event.target.value.replace(/\D/g, "").slice(0, 19));
+                            setCardError("");
+                          }}
+                          onBlur={() => {
+                            const digits = cardNumber.replace(/\D/g, "");
+                            if (digits.length > 0 && (digits.length < 16 || digits.length > 19)) {
+                              setCardError("Số thẻ phải gồm 16–19 chữ số.");
+                            }
+                          }}
+                          placeholder="Nhập 16–19 chữ số, không cần dấu cách"
                           className="h-12 w-full rounded-2xl border border-[#dfd0c3] bg-white pl-11 pr-4 text-sm text-[#3f2417] outline-none transition placeholder:text-[#704329]/30 focus:border-[#704329]/50 focus:ring-4 focus:ring-[#704329]/8"
                         />
                       </div>
 
+                      {cardNumber && (
+                        <p aria-live="polite" className="mt-3 font-mono text-sm tracking-widest text-[#704329]">
+                          {formatCardNumber(cardNumber)}
+                        </p>
+                      )}
+
+                      {cardError ? (
+                        <p role="alert" className="mt-2 text-xs text-red-700">{cardError}</p>
+                      ) : (
+                        <p className="mt-2 text-xs text-[#704329]/50">
+                          {`Đã nhập ${cardNumber.replace(/\D/g, "").length}/19 chữ số (cần 16–19 chữ số).`}
+                        </p>
+                      )}
+
                       <p className="mt-3 text-xs leading-5 text-[#704329]/45">
                         Giao diện mô phỏng, không lưu thông tin thẻ. Dùng số
-                        4000 0000 0000 0002 để thử trường hợp thanh toán bị từ
+                        4000000000000002 để thử trường hợp thanh toán bị từ
                         chối.
                       </p>
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-[#eadfd5] bg-[#fcfaf7] p-5">
+                      <p className="text-sm font-semibold text-[#3f2417]">Chọn ví điện tử</p>
+
+                      <div className="mt-3 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Ví điện tử">
+                        {WALLET_PROVIDERS.map((provider) => (
+                          <button
+                            key={provider}
+                            type="button"
+                            role="radio"
+                            aria-checked={walletProvider === provider}
+                            onClick={() => setWalletProvider(provider)}
+                            className={`rounded-xl border px-3 py-3 text-sm font-semibold transition ${
+                              walletProvider === provider
+                                ? "border-[#704329] bg-[#704329] text-white"
+                                : "border-[#eadfd5] bg-white text-[#704329] hover:border-[#d9c4b2]"
+                            }`}
+                          >
+                            {provider}
+                          </button>
+                        ))}
+                      </div>
+
                       <label
                         htmlFor="wallet-account"
-                        className="block text-sm font-semibold text-[#3f2417]"
+                        className="mt-5 block text-sm font-semibold text-[#3f2417]"
                       >
-                        Tài khoản ví điện tử
+                        {`Số điện thoại đăng ký ví ${walletProvider}`}
                       </label>
 
                       <div className="relative mt-3">
@@ -667,22 +776,25 @@ export default function PaymentPage() {
 
                         <input
                           id="wallet-account"
-                          type="text"
+                          type="tel"
+                          inputMode="numeric"
+                          autoComplete="tel"
+                          maxLength={10}
                           value={walletAccount}
-                          onChange={(event) =>
-                            setWalletAccount(
-                              event.target.value,
-                            )
-                          }
-                          placeholder="Nhập số điện thoại hoặc tài khoản"
+                          aria-invalid={Boolean(walletError)}
+                          onChange={(event) => {
+                            setWalletAccount(event.target.value.replace(/\D/g, "").slice(0, 10));
+                            setWalletError("");
+                          }}
+                          placeholder="0912345678"
                           className="h-12 w-full rounded-2xl border border-[#dfd0c3] bg-white pl-11 pr-4 text-sm text-[#3f2417] outline-none transition placeholder:text-[#704329]/30 focus:border-[#704329]/50 focus:ring-4 focus:ring-[#704329]/8"
                         />
                       </div>
 
+                      {walletError && <p role="alert" className="mt-2 text-xs text-red-700">{walletError}</p>}
+
                       <p className="mt-3 text-xs leading-5 text-[#704329]/45">
-                        Đây là giao diện mô phỏng. Thông tin
-                        thanh toán thực tế sẽ được xử lý bởi
-                        payment gateway.
+                        {`Sau khi bấm thanh toán, bạn sẽ xác nhận giao dịch trên ví ${walletProvider} bằng mã OTP. Đây là giao diện mô phỏng, không trừ tiền thật.`}
                       </p>
                     </div>
                   )}
@@ -802,6 +914,67 @@ export default function PaymentPage() {
                     </>
                   )}
                 </button>
+
+                {otpOpen && (
+                  <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-4" role="presentation">
+                    <div
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="otp-title"
+                      className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl"
+                    >
+                      <h2 id="otp-title" className="text-lg font-semibold text-[#3f2417]">
+                        {`Xác nhận thanh toán qua ${walletProvider}`}
+                      </h2>
+                      <p className="mt-2 text-sm text-[#704329]/70">
+                        {`Thanh toán ${formatPrice(total)} từ ví gắn với số ${maskPhone(walletAccount.trim())}.`}
+                      </p>
+
+                      <label htmlFor="wallet-otp" className="mt-5 block text-sm font-semibold text-[#3f2417]">
+                        Mã OTP (6 chữ số)
+                      </label>
+                      <input
+                        id="wallet-otp"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        autoFocus
+                        value={otp}
+                        onChange={(event) => {
+                          setOtp(event.target.value.replace(/\D/g, "").slice(0, 6));
+                          setOtpError("");
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") void confirmWalletOtp();
+                        }}
+                        placeholder="______"
+                        className="mt-2 h-12 w-full rounded-2xl border border-[#dfd0c3] bg-white px-4 text-center text-lg tracking-[0.5em] text-[#3f2417] outline-none focus:border-[#704329]/50 focus:ring-4 focus:ring-[#704329]/8"
+                      />
+                      {otpError && <p role="alert" className="mt-2 text-xs text-red-700">{otpError}</p>}
+                      <p className="mt-3 text-xs leading-5 text-[#704329]/45">
+                        Demo: nhập 123456 để thanh toán thành công; nhập mã khác để thử trường hợp bị từ chối.
+                      </p>
+
+                      <div className="mt-5 grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setOtpOpen(false)}
+                          className="h-12 rounded-2xl border border-[#dfd0c3] text-sm font-semibold text-[#704329] transition hover:bg-[#f8f1ea]"
+                        >
+                          Hủy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void confirmWalletOtp()}
+                          className="h-12 rounded-2xl bg-[#704329] text-sm font-semibold text-white transition hover:bg-[#5b3522]"
+                        >
+                          Xác nhận
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* SECURITY */}
                 <div className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-[#704329]/45">

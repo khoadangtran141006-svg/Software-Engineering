@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
+import { vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 
 import { User } from '../src/users/entities/user.entity.js';
@@ -28,6 +29,7 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
   let ds: DataSource;
   let orders: OrdersService;
   let payments: PaymentsService;
+  let chargeSpy: ReturnType<typeof vi.spyOn>;
   let userId: number;
   let productId: number;
 
@@ -36,8 +38,18 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
   async function newOrder(quantity = 1, promotionCode?: string) {
     return orders.createOrder({ items: [item(quantity)], promotionCode } as never, userId);
   }
-  const pay = (orderId: number, key: string, token = 'approved') =>
-    payments.pay({ orderId, method: 'Ví điện tử', token } as never, key, userId);
+  const pay = (orderId: number, key: string, declined = false) =>
+    payments.pay(
+      { orderId, method: 'Thẻ ngân hàng', cardNumber: declined ? '4000000000000002' : '4242424242424242' } as never,
+      key,
+      userId,
+    );
+  const payWallet = (orderId: number, key: string, otp: string) =>
+    payments.pay(
+      { orderId, method: 'Ví điện tử', walletProvider: 'MoMo', walletPhone: '0912345678', otp } as never,
+      key,
+      userId,
+    );
   const stockOf = async () => (await ds.getRepository(Product).findOneByOrFail({ id: productId })).stock;
   const pointsOf = async () => (await ds.getRepository(User).findOneByOrFail({ id: userId })).loyaltyPoints;
 
@@ -66,11 +78,18 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
       promotions,
       state,
     );
+    // Cổng thanh toán chậm (60ms) để các request song song thực sự chồng lên nhau, giống môi trường thật/CI.
+    const gateway = new MockPaymentService();
+    const realCharge = gateway.charge.bind(gateway);
+    chargeSpy = vi.spyOn(gateway, 'charge').mockImplementation(async (input) => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      return realCharge(input);
+    });
     payments = new PaymentsService(
       ds.getRepository(Payment),
       ds.getRepository(Order),
       ds,
-      new MockPaymentService(),
+      gateway,
       state,
       promotions,
     );
@@ -81,6 +100,7 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
   });
 
   beforeEach(async () => {
+    chargeSpy.mockClear();
     await ds.query('TRUNCATE payments, order_items, orders, users, products RESTART IDENTITY CASCADE');
     const user = await ds.getRepository(User).save(
       ds.getRepository(User).create({ name: 'Test', email: 't@t.vn', passwordHash: 'x' }),
@@ -138,6 +158,7 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
       const order = await newOrder(1);
       const results = await Promise.allSettled(Array.from({ length: 5 }, () => pay(order.id, 'race-key')));
       expect(results.every((r) => r.status === 'fulfilled')).toBe(true);
+      expect(chargeSpy).toHaveBeenCalledTimes(1); // chỉ gọi cổng thanh toán đúng 1 lần
       expect(await ds.getRepository(Payment).count()).toBe(1);
       expect(await pointsOf()).toBe(3);
       expect((await ds.getRepository(Order).findOneByOrFail({ id: order.id })).status).toBe('PAID');
@@ -147,8 +168,17 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
       const order = await newOrder(1);
       const results = await Promise.allSettled([pay(order.id, 'key-1'), pay(order.id, 'key-2')]);
       expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      expect(chargeSpy).toHaveBeenCalledTimes(1);
       expect(await ds.getRepository(Payment).count({ where: { status: 'SUCCEEDED' } })).toBe(1);
       expect(await pointsOf()).toBe(3);
+    });
+
+    it('ví điện tử: đúng OTP thì PAID, sai OTP thì PAYMENT_FAILED', async () => {
+      const ok = await newOrder(1);
+      expect((await payWallet(ok.id, 'w-1', '123456')).status).toBe('SUCCEEDED');
+      const bad = await newOrder(1);
+      expect((await payWallet(bad.id, 'w-2', '000000')).status).toBe('FAILED');
+      expect((await ds.getRepository(Order).findOneByOrFail({ id: bad.id })).status).toBe('PAYMENT_FAILED');
     });
 
     it('dùng lại key cho đơn khác bị từ chối', async () => {
@@ -160,7 +190,7 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
 
     it('thanh toán lỗi → PAYMENT_FAILED, không cộng điểm; thử lại với key mới thì thành công', async () => {
       const order = await newOrder(1);
-      const failed = await pay(order.id, 'fail-1', 'decline');
+      const failed = await pay(order.id, 'fail-1', true);
       expect(failed.status).toBe('FAILED');
       expect((await ds.getRepository(Order).findOneByOrFail({ id: order.id })).status).toBe('PAYMENT_FAILED');
       expect(await pointsOf()).toBe(0);

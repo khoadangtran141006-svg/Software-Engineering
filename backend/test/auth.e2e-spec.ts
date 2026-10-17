@@ -27,6 +27,11 @@ describe('Authentication API (e2e)', () => {
 
   afterAll(async () => app.close());
 
+  it('rejects a mistyped popular email domain such as gmail.co', async () => {
+    await request(app.getHttpServer()).post('/auth/register')
+      .send({ name: 'Khoa', email: 'tdk@gmail.co', password: 'password123' }).expect(400);
+  });
+
   it('registers valid credentials', async () => {
     await request(app.getHttpServer()).post('/auth/register')
       .send({ name: 'Test User', email: 'test@example.com', password: 'secret12' })

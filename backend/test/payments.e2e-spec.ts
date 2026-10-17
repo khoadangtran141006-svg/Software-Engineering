@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types';
@@ -22,6 +23,7 @@ describe('Payments API (e2e)', () => {
       },
     }).compile();
     app = module.createNestApplication();
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     await app.init();
   });
 
@@ -31,5 +33,22 @@ describe('Payments API (e2e)', () => {
     await request(app.getHttpServer()).post('/payments').set('Idempotency-Key', 'payment-1')
       .send({ orderId: 12, method: 'QR Code', token: 'approved' }).expect(201);
     expect(payments.pay).toHaveBeenCalledWith({ orderId: 12, method: 'QR Code', token: 'approved' }, 'payment-1', 7);
+  });
+
+  const post = (body: object) =>
+    request(app.getHttpServer()).post('/payments').set('Idempotency-Key', 'k').send({ orderId: 1, ...body });
+
+  it('thẻ ngân hàng: chỉ nhận 16–19 chữ số', async () => {
+    await post({ method: 'Thẻ ngân hàng', cardNumber: '4'.repeat(16) }).expect(201);
+    await post({ method: 'Thẻ ngân hàng', cardNumber: '4'.repeat(19) }).expect(201);
+    await post({ method: 'Thẻ ngân hàng', cardNumber: '4' }).expect(400);
+    await post({ method: 'Thẻ ngân hàng', cardNumber: '4'.repeat(30) }).expect(400);
+  });
+
+  it('ví điện tử: bắt buộc có ví, số điện thoại và OTP hợp lệ', async () => {
+    const wallet = { method: 'Ví điện tử', walletProvider: 'MoMo', walletPhone: '0912345678', otp: '123456' };
+    await post(wallet).expect(201);
+    await post({ ...wallet, otp: undefined }).expect(400);
+    await post({ ...wallet, walletPhone: '123' }).expect(400);
   });
 });

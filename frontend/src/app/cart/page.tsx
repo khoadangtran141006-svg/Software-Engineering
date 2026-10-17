@@ -10,8 +10,9 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { useCartStore } from "@/stores/cart-store";
+import { useEffect, useMemo, useState } from "react";
+import { quantityInCart, useCartStore } from "@/stores/cart-store";
+import { getProducts } from "@/services/products";
 
 function formatPrice(price: number) {
   return `${price.toLocaleString("vi-VN")}đ`;
@@ -35,6 +36,26 @@ export default function CartPage() {
   const addItem = useCartStore(
     (state) => state.addItem,
   );
+
+  const syncStock = useCartStore((state) => state.syncStock);
+  const [stockNotice, setStockNotice] = useState("");
+
+  // Đồng bộ tồn kho mới nhất khi mở giỏ hàng để không giữ số lượng vượt quá hàng còn lại.
+  useEffect(() => {
+    let cancelled = false;
+    getProducts()
+      .then((products) => {
+        if (cancelled) return;
+        const stockById = Object.fromEntries(products.map((product) => [product.id, product.stock]));
+        if (syncStock(stockById)) {
+          setStockNotice("Một số sản phẩm đã được điều chỉnh số lượng theo tồn kho hiện tại.");
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [syncStock]);
 
   const [removedItem, setRemovedItem] = useState<
     (typeof cartItems)[number] | null
@@ -97,6 +118,14 @@ export default function CartPage() {
           </div>
         </div>
       </section>
+
+      {stockNotice && (
+        <div role="status" className="mx-auto max-w-7xl px-6 pt-6 sm:px-8 lg:px-10">
+          <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {stockNotice}
+          </p>
+        </div>
+      )}
 
       {/* =========================================================
           REMOVE FEEDBACK
@@ -291,8 +320,14 @@ export default function CartPage() {
                                       item.cartKey,
                                     )
                                   }
+                                  disabled={item.quantity >= item.stock - quantityInCart(cartItems, item.id, item.cartKey)}
+                                  title={
+                                    item.quantity >= item.stock - quantityInCart(cartItems, item.id, item.cartKey)
+                                      ? `Chỉ còn ${item.stock} sản phẩm`
+                                      : undefined
+                                  }
                                   aria-label={`Tăng số lượng ${item.name}`}
-                                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[#704329] transition hover:bg-white hover:shadow-sm active:scale-95"
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[#704329] transition hover:bg-white hover:shadow-sm active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:shadow-none"
                                 >
                                   <Plus size={14} />
                                 </button>

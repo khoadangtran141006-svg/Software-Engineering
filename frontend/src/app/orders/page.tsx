@@ -441,7 +441,7 @@ export default function OrdersPage() {
                       </div>
 
                       {/* META */}
-                      <div className="lg:min-w-[220px]">
+                      <div className="lg:min-w-55">
                         <div className="rounded-2xl border border-[#eadfd5] bg-white p-4">
                           <div className="flex items-center justify-between gap-4 text-xs">
                             <span className="text-[#704329]/45">
@@ -537,7 +537,7 @@ export default function OrdersPage() {
       ========================================================== */}
       {selectedOrder && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-[#3f2417]/45 px-4 py-6 backdrop-blur-sm"
+          className="fixed inset-0 z-80 flex items-center justify-center bg-[#3f2417]/45 px-4 py-6 backdrop-blur-sm"
           onClick={() => setSelectedOrder(null)}
         >
           <div

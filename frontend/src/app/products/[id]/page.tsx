@@ -13,7 +13,7 @@ import {
 
 import { getProductById } from "@/services/products";
 import type { Product } from "@/types/product";
-import { useCartStore } from "@/stores/cart-store";
+import { quantityInCart, useCartStore } from "@/stores/cart-store";
 import { animateProductToCart } from "@/lib/cart-animation";
 
 type ProductPageProps = {
@@ -90,6 +90,8 @@ export default function ProductDetailPage({
   const { id } = use(params);
 
   const addItem = useCartStore((state) => state.addItem);
+  const cartItems = useCartStore((state) => state.items);
+  const [stockNotice, setStockNotice] = useState("");
 
   const [product, setProduct] = useState<Product | null>(null);
 
@@ -217,7 +219,8 @@ export default function ProductDetailPage({
         return current;
       }
 
-      return Math.min(product.stock, current + 1);
+      const maxQuantity = Math.max(0, product.stock - quantityInCart(cartItems, product.id));
+      return Math.min(maxQuantity, current + 1);
     });
   }
 
@@ -239,7 +242,7 @@ export default function ProductDetailPage({
       )
       .map((topping) => topping.name);
 
-    addItem({
+    const result = addItem({
       id: product.id,
       name: product.name,
       category: product.category,
@@ -249,7 +252,22 @@ export default function ProductDetailPage({
       note: note.trim(),
       unitPrice,
       quantity,
+      stock: product.stock,
     });
+
+    setQuantity(1);
+    setStockNotice(
+      result.added === 0
+        ? `Bạn đã thêm tối đa ${product.stock} sản phẩm còn lại vào giỏ hàng.`
+        : result.limited
+          ? `Chỉ còn ${product.stock} sản phẩm nên mình đã thêm ${result.added} sản phẩm vào giỏ.`
+          : "",
+    );
+
+    if (result.added === 0) {
+      setIsAddingToCart(false);
+      return;
+    }
 
     animateProductToCart(product.imageUrl);
 
@@ -404,7 +422,11 @@ export default function ProductDetailPage({
               />
 
               {product.stock > 0
-                ? `Còn ${product.stock} sản phẩm`
+                ? `Còn ${product.stock} sản phẩm${
+                    quantityInCart(cartItems, product.id) > 0
+                      ? ` (đã có ${quantityInCart(cartItems, product.id)} trong giỏ)`
+                      : ""
+                  }`
                 : "Hết hàng"}
             </div>
 
@@ -620,7 +642,7 @@ export default function ProductDetailPage({
                 <button
                   type="button"
                   onClick={increaseQuantity}
-                  disabled={quantity >= product.stock}
+                  disabled={quantity >= product.stock - quantityInCart(cartItems, product.id)}
                   aria-label="Tăng số lượng"
                   className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#eadfd5] bg-white text-[#704329] transition hover:border-[#704329]/30 hover:bg-[#f8f1ea] disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -652,6 +674,7 @@ export default function ProductDetailPage({
               onClick={handleAddToCart}
               disabled={
                 product.stock <= 0 ||
+                product.stock - quantityInCart(cartItems, product.id) <= 0 ||
                 isAddingToCart
               }
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#3f2417] px-6 py-4 text-sm font-semibold text-white transition-all hover:bg-[#704329] disabled:cursor-not-allowed disabled:opacity-80"
@@ -676,6 +699,12 @@ export default function ProductDetailPage({
                 </>
               )}
             </button>
+
+            {stockNotice && (
+              <p role="status" className="mt-3 text-center text-xs text-amber-700">
+                {stockNotice}
+              </p>
+            )}
 
             <p className="mt-3 text-center text-xs text-[#704329]/45">
               Bạn có thể thay đổi lựa chọn trong giỏ hàng.

@@ -40,11 +40,28 @@ export class PaymentsService {
       });
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
       if (order.userId !== userId) throw new ForbiddenException('Bạn không có quyền thanh toán đơn hàng này');
+
+      // Kiểm tra lại Idempotency-Key SAU KHI giữ khóa đơn: request song song cùng key có thể đã xử lý xong
+      // trong lúc ta chờ khóa. Trả kết quả cũ, tuyệt đối không gọi cổng thanh toán lần thứ hai.
+      const processed = await manager.findOne(Payment, { where: { idempotencyKey: key } });
+      if (processed) {
+        if (processed.orderId !== dto.orderId) throw new BadRequestException('Idempotency-Key đã được dùng cho đơn hàng khác');
+        return processed;
+      }
+
+      if (order.status !== OrderStatus.PENDING && order.status !== OrderStatus.PAYMENT_FAILED) {
+        throw new BadRequestException('Đơn hàng không ở trạng thái chờ thanh toán');
+      }
       if (order.status === OrderStatus.PAYMENT_FAILED) {
         this.state.assertTransition(OrderStatus.PAYMENT_FAILED, OrderStatus.PENDING);
         order.status = OrderStatus.PENDING;
       }
-      const charge = await this.mock.charge(dto.token);
+      const charge = await this.mock.charge({
+        method: dto.method,
+        token: dto.token,
+        cardNumber: dto.cardNumber,
+        otp: dto.otp,
+      });
       const nextStatus = charge.success ? OrderStatus.PAID : OrderStatus.PAYMENT_FAILED;
       this.state.assertTransition(order.status as OrderStatus, nextStatus);
       order.status = nextStatus;
@@ -64,6 +81,9 @@ export class PaymentsService {
     } catch (error) {
       if (error instanceof QueryFailedError) {
         const duplicate = await this.payments.findOne({ where: { idempotencyKey: key } });
+        if (duplicate && duplicate.orderId !== dto.orderId) {
+          throw new BadRequestException('Idempotency-Key đã được dùng cho đơn hàng khác');
+        }
         if (duplicate && duplicate.orderId === dto.orderId) {
           const existingOrder = await this.orders.findOne({ where: { id: duplicate.orderId } });
           if (existingOrder?.userId === userId) return duplicate;
