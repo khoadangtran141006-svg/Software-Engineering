@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { vi } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 
 import { User } from '../src/users/entities/user.entity.js';
 import { Product } from '../src/products/entities/product.entity.js';
@@ -214,6 +214,83 @@ describe('Task 10 – nghiệp vụ backend (PostgreSQL thật)', () => {
       await expect(newOrder(6)).rejects.toBeInstanceOf(BadRequestException);
       expect(await stockOf()).toBe(5);
       expect(await ds.getRepository(Order).count()).toBe(0);
+    });
+  });
+
+  describe('Hủy đơn và đơn quá hạn', () => {
+    const statusOf = async (id: number) => (await ds.getRepository(Order).findOneByOrFail({ id })).status;
+    const backdate = (id: number, minutes: number) =>
+      ds.query(`UPDATE orders SET "createdAt" = now() - ($2 || ' minutes')::interval WHERE id = $1`, [id, String(minutes)]);
+
+    it('khách hủy đơn chưa thanh toán của mình thì được hoàn kho', async () => {
+      const order = await newOrder(2);
+      expect(await stockOf()).toBe(3);
+      const cancelled = await orders.cancelMine(order.id, userId);
+      expect(cancelled.status).toBe('CANCELLED');
+      expect(await stockOf()).toBe(5);
+    });
+
+    it('khách không hủy được đơn của người khác', async () => {
+      const order = await newOrder(2);
+      await expect(orders.cancelMine(order.id, userId + 999)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(await statusOf(order.id)).toBe('PENDING');
+      expect(await stockOf()).toBe(3);
+    });
+
+    it('khách không tự hủy được đơn đã thanh toán (cần nhân viên hoàn tiền)', async () => {
+      const order = await newOrder(1);
+      await pay(order.id, 'paid-1');
+      await expect(orders.cancelMine(order.id, userId)).rejects.toBeInstanceOf(BadRequestException);
+      expect(await statusOf(order.id)).toBe('PAID');
+      expect(await stockOf()).toBe(4);
+    });
+
+    it('đơn PAYMENT_FAILED vẫn hủy được và hoàn kho', async () => {
+      const order = await newOrder(1);
+      await pay(order.id, 'fail-cancel', true);
+      await orders.cancelMine(order.id, userId);
+      expect(await statusOf(order.id)).toBe('CANCELLED');
+      expect(await stockOf()).toBe(5);
+    });
+
+    it('hủy và thanh toán cùng lúc: kết quả luôn nhất quán (không vừa PAID vừa hoàn kho)', async () => {
+      const order = await newOrder(1);
+      const [cancel, payment] = await Promise.allSettled([orders.cancelMine(order.id, userId), pay(order.id, 'race-cancel')]);
+      const status = await statusOf(order.id);
+      if (status === 'PAID') {
+        expect(cancel.status).toBe('rejected');
+        expect(await stockOf()).toBe(4);
+      } else {
+        expect(status).toBe('CANCELLED');
+        expect(payment.status).toBe('rejected');
+        expect(await stockOf()).toBe(5);
+        expect(await ds.getRepository(Payment).count()).toBe(0);
+      }
+    });
+
+    it('đơn chưa thanh toán quá hạn bị hủy và hoàn kho; đơn mới hoặc đã thanh toán thì giữ nguyên', async () => {
+      const stale = await newOrder(2);
+      const fresh = await newOrder(1);
+      const paid = await newOrder(1);
+      await pay(paid.id, 'paid-old');
+      await backdate(stale.id, 30);
+      await backdate(paid.id, 30);
+
+      const expired = await orders.expireStaleOrders(15 * 60_000);
+
+      expect(expired).toBe(1);
+      expect(await statusOf(stale.id)).toBe('CANCELLED');
+      expect(await statusOf(fresh.id)).toBe('PENDING');
+      expect(await statusOf(paid.id)).toBe('PAID');
+      expect(await stockOf()).toBe(5 - 1 - 1); // chỉ còn giữ chỗ cho đơn mới và đơn đã thanh toán
+    });
+
+    it('dọn đơn quá hạn nhiều lần không hoàn kho hai lần', async () => {
+      const stale = await newOrder(3);
+      await backdate(stale.id, 30);
+      expect(await orders.expireStaleOrders(15 * 60_000)).toBe(1);
+      expect(await orders.expireStaleOrders(15 * 60_000)).toBe(0);
+      expect(await stockOf()).toBe(5);
     });
   });
 

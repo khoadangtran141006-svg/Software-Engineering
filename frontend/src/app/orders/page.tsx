@@ -50,7 +50,7 @@ function getStatusInfo(status: OrderStatus) {
     case "PENDING":
       return {
         label: "Chờ thanh toán",
-        description: "Đơn hàng đang chờ thanh toán",
+        description: "Đơn hàng đang chờ thanh toán. Đơn sẽ tự hủy nếu quá 15 phút chưa thanh toán.",
         icon: Clock3,
         className: "bg-[#fff4e6] text-[#a55d22] border-[#f1d7bb]",
       };
@@ -58,7 +58,7 @@ function getStatusInfo(status: OrderStatus) {
     case "PAYMENT_FAILED":
       return {
         label: "Thanh toán thất bại",
-        description: "Vui lòng thử lại phương thức thanh toán",
+        description: "Vui lòng thử lại thanh toán, hoặc hủy đơn. Đơn sẽ tự hủy nếu quá 15 phút chưa thanh toán.",
         icon: XCircle,
         className: "bg-[#fceeee] text-[#a33a3a] border-[#eccaca]",
       };
@@ -121,6 +121,8 @@ export default function OrdersPage() {
   const orders = useOrdersStore((state) => state.orders);
   const setOrders = useOrdersStore((state) => state.setOrders);
   const [loadError, setLoadError] = useState("");
+  const [cancelError, setCancelError] = useState("");
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   useEffect(() => {
     const token = getToken();
@@ -132,6 +134,7 @@ export default function OrdersPage() {
         if (!response.ok) throw new Error(payload.message ?? "Không thể tải lịch sử đơn hàng");
         setOrders(payload.map((order: { id: number; orderCode: string; status: OrderStatus; total: number; createdAt: string; paymentMethod: string | null; items: Array<{ id: number; quantity: number; size: string; lineTotal: number; toppings: string[]; product: { id: number; name: string; category: string; imageUrl: string } }> }) => ({
           id: order.orderCode,
+          dbId: order.id,
           createdAt: order.createdAt,
           status: order.status,
           paymentMethod: (["Ví điện tử", "Thẻ ngân hàng"] as const).find((method) => method === order.paymentMethod) ?? "QR Code",
@@ -142,6 +145,29 @@ export default function OrdersPage() {
       })
       .catch((cause: unknown) => setLoadError(cause instanceof Error ? cause.message : "Không thể tải lịch sử"));
   }, [setOrders]);
+
+  async function cancelOrder(order: Order) {
+    const token = getToken();
+    if (!token || !order.dbId || cancellingId) return;
+    if (!window.confirm(`Bạn có chắc muốn hủy đơn ${order.id}?`)) return;
+
+    setCancelError("");
+    setCancellingId(order.id);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+      const response = await fetch(`${apiUrl}/orders/${order.dbId}/cancel`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message ?? "Không thể hủy đơn hàng");
+      setOrders(orders.map((current) => (current.id === order.id ? { ...current, status: "CANCELLED" } : current)));
+    } catch (cause) {
+      setCancelError(cause instanceof Error ? cause.message : "Không thể hủy đơn hàng");
+    } finally {
+      setCancellingId(null);
+    }
+  }
 
   const [selectedOrder, setSelectedOrder] =
     useState<Order | null>(null);
@@ -200,6 +226,7 @@ export default function OrdersPage() {
       ========================================================== */}
       <section className="mx-auto max-w-7xl px-6 py-12 sm:px-8 lg:px-10 lg:py-16">
         {loadError && <p role="alert" className="mb-5 rounded-xl bg-red-50 p-4 text-sm text-red-700">{loadError}</p>}
+        {cancelError && <p role="alert" className="mb-5 rounded-xl bg-red-50 p-4 text-sm text-red-700">{cancelError}</p>}
         {/* =======================================================
             TOP BAR
         ======================================================== */}
@@ -483,6 +510,18 @@ export default function OrdersPage() {
                             <Eye size={15} />
                             Xem chi tiết
                           </button>
+
+                          {(order.status === "PENDING" || order.status === "PAYMENT_FAILED") && order.dbId && (
+                            <button
+                              type="button"
+                              onClick={() => void cancelOrder(order)}
+                              disabled={cancellingId === order.id}
+                              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-[#eccaca] px-4 py-3 text-xs font-semibold text-[#a33a3a] transition hover:bg-[#fceeee] active:scale-[0.98] disabled:opacity-60"
+                            >
+                              <XCircle size={15} />
+                              {cancellingId === order.id ? "Đang hủy..." : "Hủy đơn"}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

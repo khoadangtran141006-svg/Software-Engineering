@@ -47,6 +47,14 @@ Trong `backend`, chạy `npm test`, `npm run test:e2e` và `npm run build`. Tron
 
 `test/business.e2e-spec.ts` là integration test chạy trên PostgreSQL thật để chứng minh Task 10: chặn chuyển trạng thái sai, Idempotency-Key (kể cả gửi đồng thời), không bán quá tồn kho khi đặt đồng thời, hoàn kho khi hủy đơn, khuyến mãi và điểm thưởng. Test dùng một database riêng (mặc định `brewlite_test` trên `localhost:5432`, user `postgres`) và **xóa sạch schema của database đó mỗi lần chạy**. Tạo database bằng `createdb brewlite_test` hoặc `docker run -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16`, rồi đặt `TEST_DB_PASSWORD` (và `TEST_DB_HOST`, `TEST_DB_PORT`, `TEST_DB_USER`, `TEST_DB_NAME` nếu khác mặc định).
 
+## Giữ chỗ tồn kho, hủy đơn và đơn quá hạn
+
+Tồn kho được trừ ngay khi tạo đơn (`POST /orders`) để tránh bán quá số lượng. Vì vậy:
+
+- Khách có thể tự hủy đơn **chưa thanh toán** (PENDING hoặc PAYMENT_FAILED) bằng nút "Hủy đơn" ở trang Lịch sử hoặc `PATCH /orders/:id/cancel`. Đơn đã PAID cần nhân viên xử lý (hoàn tiền).
+- Đơn chưa thanh toán sau `ORDER_EXPIRY_MINUTES` phút (mặc định 15, đặt `0` để tắt) sẽ tự hủy và hoàn kho; tác vụ dọn đơn chạy mỗi `ORDER_EXPIRY_INTERVAL_SECONDS` giây (mặc định 60).
+- Hủy hoặc hết hạn chạy trong transaction có khóa dòng đơn hàng, nên không thể vừa PAID vừa bị hoàn kho khi khách thanh toán và hủy cùng lúc.
+
 ## Ghi chú
 
 Backend dùng TypeORM cho tài khoản/đơn/thanh toán và Prisma migrations cho bảng sản phẩm. Không đưa `.env`, mật khẩu thật hoặc JWT secret vào Git.

@@ -11,6 +11,7 @@ import { JwtStrategy } from '../auth/jwt.strategy.js';
 import { InventoryModule } from '../inventory/inventory.module.js';
 import { PromotionsModule } from '../promotions/promotions.module.js';
 import { OrderStateService } from './order-state.service.js';
+import { OrderExpiryService } from './order-expiry.service.js';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { OrderStateService } from './order-state.service.js';
     PromotionsModule,
   ],
   controllers: [OrdersController],
-  providers: [OrdersService, JwtStrategy, OrderStateService],
+  providers: [OrdersService, JwtStrategy, OrderStateService, OrderExpiryService],
   exports: [OrdersService],
 })
 export class OrdersModule {}

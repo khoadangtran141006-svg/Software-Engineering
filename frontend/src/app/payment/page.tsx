@@ -218,7 +218,14 @@ export default function PaymentPage() {
       setPendingOrder(null);
       router.push(`/order-success?payment=${paymentMethod}&order=${order.orderCode}`);
     } catch (cause) {
-      setPaymentError(cause instanceof Error ? cause.message : "Không thể hoàn tất thanh toán");
+      const message = cause instanceof Error ? cause.message : "Không thể hoàn tất thanh toán";
+      if (message.includes("không ở trạng thái chờ thanh toán")) {
+        // Đơn đã bị hủy (quá hạn hoặc đã hủy ở nơi khác): bỏ đơn cũ để lần sau tạo đơn mới.
+        setPendingOrder(null);
+        setPaymentError("Đơn hàng đã bị hủy do quá thời gian chờ thanh toán. Hãy bấm thanh toán lại để tạo đơn mới.");
+      } else {
+        setPaymentError(message);
+      }
     } finally {
       setIsProcessing(false);
     }

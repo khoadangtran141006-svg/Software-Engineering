@@ -26,6 +26,8 @@ export type OrderItem = {
 
 export type Order = {
   id: string;
+  /** Id trong cơ sở dữ liệu (dùng để gọi API hủy đơn); đơn vừa tạo cục bộ có thể chưa có. */
+  dbId?: number;
   createdAt: string;
   status: OrderStatus;
   paymentMethod: "QR Code" | "Ví điện tử" | "Thẻ ngân hàng";
