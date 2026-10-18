@@ -23,6 +23,12 @@ export class OrdersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Patch(':id/cancel')
+  cancelMine(@Param('id', ParseIntPipe) id: number, @Req() request: Request & { user: { id: number } }) {
+    return this.ordersService.cancelMine(id, request.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/status')
   updateStatus(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateOrderStatusDto, @Req() request: Request & { user: { role: string } }) {
     if (request.user.role !== 'STAFF') throw new ForbiddenException('Chỉ nhân viên mới được cập nhật trạng thái đơn');

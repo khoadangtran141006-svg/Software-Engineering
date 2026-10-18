@@ -13,6 +13,7 @@ describe('Orders API (e2e)', () => {
     createOrder: vi.fn().mockResolvedValue({ orderCode: 'BL-100', status: 'PENDING' }),
     findMine: vi.fn().mockResolvedValue([]),
     updateStatus: vi.fn(),
+    cancelMine: vi.fn().mockResolvedValue({ status: 'CANCELLED' }),
   };
 
   beforeEach(async () => {
@@ -36,6 +37,11 @@ describe('Orders API (e2e)', () => {
   it('creates an order for the authenticated account', async () => {
     await request(app.getHttpServer()).post('/orders').send({ items: [{ productId: 1, quantity: 2, size: 'M', toppings: [] }] }).expect(201);
     expect(orders.createOrder).toHaveBeenCalledWith(expect.any(Object), 7);
+  });
+
+  it('lets the authenticated customer cancel their own order', async () => {
+    await request(app.getHttpServer()).patch('/orders/12/cancel').expect(200);
+    expect(orders.cancelMine).toHaveBeenCalledWith(12, 7);
   });
 
   it('rejects invalid order bodies and lists account orders', async () => {
